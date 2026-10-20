@@ -170,6 +170,55 @@ function loadActivity(device, event) {
   device.labTotals = event;
 }
 
+let hoverPoints = [], hoverPosition = null;
+const chartSvg = document.querySelector('.load-chart');
+const chartTooltip = $('#load-chart-tooltip');
+
+function hideChartTooltip() {
+  chartTooltip.hidden = true;
+  hoverPosition = null;
+}
+
+function showChartTooltip(position) {
+  const matrix = chartSvg.getScreenCTM();
+  if (!matrix) return hideChartTooltip();
+  // Measure in screen pixels so the target stays usable when the SVG is scaled.
+  const nearby = hoverPoints.map(point => {
+    const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+    return { point, distance: Math.hypot(screen.x - position.x, screen.y - position.y) };
+  }).filter(item => item.distance <= 12).sort((a, b) => a.distance - b.distance);
+  if (!nearby.length) return hideChartTooltip();
+  const nearest = nearby[0].point;
+  const matches = nearby.filter(({point}) => Math.abs(point.x - nearest.x) < 0.5 && Math.abs(point.y - nearest.y) < 0.5);
+  const time = document.createElement('div');
+  time.className = 'chart-tooltip-time';
+  time.textContent = `${(nearest.elapsed / 1000).toFixed(2)} s`;
+  chartTooltip.replaceChildren(time, ...matches.map(({point}) => {
+    const series = CHART_SERIES.find(item => item.id === point.series);
+    const row = document.createElement('div'); row.className = 'chart-tooltip-row';
+    const label = document.createElement('span'); label.textContent = series.label;
+    label.style.setProperty('--series-color', series.color);
+    const value = document.createElement('strong');
+    const unit = series.unit ?? (series.gauge ? 'frames pending' : `events / ${((point.span ?? 1000) / 1000).toFixed(2)} s`);
+    value.textContent = `${point.value.toLocaleString('en-US')} ${unit}`;
+    row.append(label, value); return row;
+  }));
+  chartTooltip.hidden = false;
+  hoverPosition = position;
+  const box = chartTooltip.getBoundingClientRect();
+  chartTooltip.style.left = `${Math.max(8, Math.min(position.x + 14, window.innerWidth - box.width - 8))}px`;
+  chartTooltip.style.top = `${Math.max(8, position.y + box.height + 22 > window.innerHeight ? position.y - box.height - 12 : position.y + 16)}px`;
+}
+
+chartSvg.addEventListener('pointermove', event => showChartTooltip({x:event.clientX, y:event.clientY}));
+chartSvg.addEventListener('pointerdown', event => showChartTooltip({x:event.clientX, y:event.clientY}));
+chartSvg.addEventListener('pointerleave', hideChartTooltip);
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hideChartTooltip(); });
+window.addEventListener('scroll', event => {
+  if (event.target === document || event.target === chartSvg.closest('.load-chart-scroll')) hideChartTooltip();
+}, true);
+window.addEventListener('resize', hideChartTooltip);
+
 function renderLoad() {
   const session = loadTest.session, tx = session?.tx, rx = session?.rx;
   $('#load-start').disabled = !loadTest.ready || loadTest.busy || loadTest.active;
@@ -185,6 +234,7 @@ function renderLoad() {
   $('#load-queued-rate').textContent = tx ? tx.queued_fps.toLocaleString('en-US') : '—';
   const value = (id, n) => { $(id).textContent = n === undefined ? '—' : n.toLocaleString('en-US'); };
   value('#load-queued', tx?.queued); value('#load-rx-total', rx?.rx); value('#load-rejected', tx?.rejected);
+  value('#load-cancelled', tx?.cancelled); value('#load-failed', tx?.failed);
   value('#load-gaps', rx?.gaps); value('#load-skipped', tx?.skipped); value('#load-pending', tx?.pending);
   $('#load-errors').textContent = `${tx?.errors ?? '—'} / ${rx?.errors ?? '—'}`;
   $('#load-missed').textContent = `${rx?.missed ?? '—'} / ${rx?.overrun ?? '—'}`;
@@ -204,6 +254,7 @@ function renderLoad() {
   }
   const dots = $('#load-chart-points');
   const points = [...chart.points, ...chart.diagnosticPoints];
+  hoverPoints = points;
   const signature = JSON.stringify(points);
   if (dots.dataset.samples !== signature) {
     dots.dataset.samples = signature;
@@ -212,12 +263,13 @@ function renderLoad() {
       const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       dot.setAttribute('cx', point.x); dot.setAttribute('cy', point.y); dot.setAttribute('r', '3');
       dot.setAttribute('fill', series.color); dot.dataset.series = series.id;
-      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+
       const unit = series.unit ?? (series.gauge ? 'frames pending' : `events / ${((point.span ?? 1000) / 1000).toFixed(2)} s window`);
-      title.textContent = `${(point.elapsed / 1000).toFixed(2)} s · ${series.label}: ${point.value.toLocaleString('en-US')} ${unit}`;
-      dot.append(title); return dot;
+      dot.setAttribute('aria-label', `${(point.elapsed / 1000).toFixed(2)} s · ${series.label}: ${point.value.toLocaleString('en-US')} ${unit}`);
+      return dot;
     }));
   }
+  if (hoverPosition) showChartTooltip(hoverPosition);
 }
 
 for (const input of document.querySelectorAll('[data-chart-series]')) input.addEventListener('change', renderLoad);

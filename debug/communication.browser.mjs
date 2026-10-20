@@ -188,6 +188,8 @@ async function run() {
     await until(() => load.doc.querySelector('#rx-count').textContent === '90');
     assert(load.doc.querySelector('#rx-count').textContent === '90', `Duplicate summation: ${load.doc.querySelector('#rx-count').textContent}`);
     assert(load.doc.querySelector('#load-rejected').textContent === '10', 'Queue rejections missing');
+    assert(load.doc.querySelector('#load-cancelled').textContent === '0', 'Cancelled counter missing');
+    assert(load.doc.querySelector('#load-failed').textContent === '0', 'Failed counter missing');
     assert(load.doc.querySelector('#load-gaps').textContent === '0', 'Queue rejections counted as RX loss');
   });
   await check('Time chart shows separate TX/RX points even with a paused console', async () => {
@@ -196,11 +198,34 @@ async function run() {
     assert(load.doc.querySelectorAll('#load-chart-points circle[data-series=sender], #load-chart-points circle[data-series=receiver]').length === 2, 'Duplicate or missing points');
     assert(load.doc.querySelector('[data-chart-second="60"]').textContent === '60 s', 'Seconds axis missing');
   });
+  await check('Hover immediately shows series name, value, unit and measurement time', async () => {
+    const point = load.doc.querySelector('#load-chart-points circle[data-series="sender"]');
+    const svg = load.doc.querySelector('.load-chart');
+    const pos = new DOMPoint(Number(point.getAttribute('cx')),Number(point.getAttribute('cy'))).matrixTransform(svg.getScreenCTM());
+    svg.dispatchEvent(new PointerEvent('pointermove',{clientX:pos.x,clientY:pos.y}));
+    const tooltip = load.doc.querySelector('#load-chart-tooltip');
+    assert(!tooltip.hidden, 'Tooltip not shown');
+    assert(tooltip.textContent.includes('TX queued') && tooltip.textContent.includes('100 frames/s'), 'Name or rate missing');
+    assert(tooltip.textContent.includes('1.00 s'), 'Measurement time missing');
+    svg.dispatchEvent(new PointerEvent('pointerleave'));
+    assert(tooltip.hidden, 'Tooltip remains visible after leaving chart');
+  });
+  await check('Overlapping diagnostic points expose all matching series and Escape dismisses the tooltip', async () => {
+    const point = load.doc.querySelector('#load-chart-points circle[data-series="gaps"]');
+    const svg = load.doc.querySelector('.load-chart');
+    const pos = new DOMPoint(Number(point.getAttribute('cx')),Number(point.getAttribute('cy'))).matrixTransform(svg.getScreenCTM());
+    svg.dispatchEvent(new PointerEvent('pointerdown',{clientX:pos.x,clientY:pos.y}));
+    const tooltip = load.doc.querySelector('#load-chart-tooltip');
+    assert(!tooltip.hidden && tooltip.textContent.includes('Counter gaps') && tooltip.textContent.includes('HW overrun'), 'Overlapping values missing');
+    assert(tooltip.textContent.includes('0 events / 1.00 s'), 'Diagnostic units missing');
+    load.doc.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
+    assert(tooltip.hidden, 'Escape did not hide tooltip');
+  });
   await check('Diagnostic chart shows counter increments and toggles series without losing samples', async () => {
     const queued = senderStats(load.ports[0].test).replace('elapsed_ms=1000','elapsed_ms=2000').replace('rejected=10','rejected=13').replace('skipped=0','skipped=2');
     load.ports[0].send(queued);
     await until(() => load.doc.querySelectorAll('circle[data-series=skipped]').length === 2);
-    assert(load.doc.querySelector('circle[data-series=skipped]:last-child title')?.textContent.includes('2 events') || [...load.doc.querySelectorAll('circle[data-series=skipped] title')].some(t=>t.textContent.includes('2 events')), 'Skip increment missing');
+    assert([...load.doc.querySelectorAll('circle[data-series=skipped]')].some(dot => dot.getAttribute('aria-label').includes('2 events')), 'Skip increment missing');
     const toggle=load.doc.querySelector('[data-chart-series][value=skipped]');
     toggle.click();
     assert(load.doc.querySelector('[data-chart-path=skipped]').getAttribute('d') === '', 'Hidden series remains drawn');
