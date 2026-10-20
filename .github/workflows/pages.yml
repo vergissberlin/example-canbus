@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - 'index.html'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'browserconfig.xml'
+      - 'pwa/**'
+      - 'scripts/**'
       - 'debug/**'
       - 'docs/**'
       - 'firmware/**'
@@ -33,12 +38,7 @@ jobs:
         run: c++ -std=c++11 -Wall -Wextra -Werror tests/load_control_test.cpp -o /tmp/canlab-control-test && /tmp/canlab-control-test
       - uses: actions/configure-pages@v5
       - name: Prepare static site
-        run: |
-          mkdir -p _site/debug _site/docs
-          cp debug/index.html debug/style.css debug/app.mjs debug/protocol.mjs debug/communication.mjs debug/load-test.mjs _site/debug/
-          cp docs/canbus-breadboard.svg docs/canbus-communication.svg _site/docs/
-          cp docs/canlab-opengraph.png _site/docs/
-          cp index.html _site/
+        run: python3 scripts/build_site.py
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
