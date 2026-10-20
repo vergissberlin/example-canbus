@@ -60,13 +60,19 @@ export class LoadTest {
     this.nextId = this.now() >>> 0;
     this.epoch = 0;
     this.recovery = null;
+    this.senderMode = 'unknown';
   }
   get message() { return text(this.messageDescriptor); }
   set message(value) { this.messageDescriptor = value; }
   get ready() { return ROLES.every(role => this.boards[role].connected && this.boards[role].ready); }
+  get canStop() { return this.boards.sender.connected && this.boards.sender.ready && (this.senderMode !== 'stopped' || this.busy); }
+  get elapsedMs() {
+    if (!this.session) return 0;
+    return this.session.stoppedAt ?? this.session.tx?.elapsed_ms ?? 0;
+  }
   connection(role, connected) {
     this.boards[role] = { connected, ready: false };
-    if (role === 'sender') this.recovery = null;
+    if (role === 'sender') { this.recovery = null; this.senderMode = 'unknown'; }
     if (!connected) {
       this.epoch++;
       for (const [key, pending] of this.pending) if (key.startsWith(role + ':')) {
@@ -96,6 +102,12 @@ export class LoadTest {
       this.boards[role].demo = event.demo === 1;
       this.message = message(this.ready ? 'Ready · 500 kbit/s · Load frames with 8 data bytes.' : 'Waiting for compatible CAN-LAB firmware on both boards.');
     }
+    if (role === 'sender') {
+      if (event.type === 'ack' && ['start', 'stop', 'demo'].includes(event.command)) {
+        this.senderMode = {start:'test', stop:'stopped', demo:'demo'}[event.command];
+      }
+      if (event.type === 'stats' && event.running === 1) this.senderMode = 'test';
+    }
     if (event.type === 'ack') {
       const key = role + ':' + event.command, pending = this.pending.get(key);
       if (pending && (pending.test === null || pending.test === event.test)) {
@@ -113,10 +125,15 @@ export class LoadTest {
     }
     if (event.type === 'recovered' && role === 'sender' && event.demo === 1) {
       this.recovery = 'recovered';
+      this.senderMode = 'demo';
       this.message = message('CAN recovered · Demo resumed at 1 frame/s. The interrupted load test remains stopped.');
     }
     if (this.session && event.test === this.session.id) {
       if (event.type === 'stats') {
+        if (role === 'sender' && event.running === 0) {
+          this.session.stoppedAt ??= Math.min(event.elapsed_ms, this.session.seconds * 1000);
+          if (this.senderMode === 'test') this.senderMode = 'stopped';
+        }
         this.session[role === 'sender' ? 'tx' : 'rx'] = event;
         this.session.updated = this.now();
         const samples = this.session.samples;
@@ -139,7 +156,8 @@ export class LoadTest {
         }
       }
       if (event.type === 'end') {
-        this.active = false; this.session.reason = event.reason;
+        this.active = false; this.senderMode = 'stopped'; this.session.reason = event.reason;
+        this.session.stoppedAt ??= event.reason === 'timeout' ? this.session.seconds * 1000 : this.elapsedMs;
         if (event.reason === 'bus_off') this.recovery = 'recovering';
         this.message = message(event.reason === 'timeout' ? 'Test duration reached. Sender stopped; final reception measurements are still arriving.'
           : event.reason === 'stop' ? 'Sender stopped; final reception measurements are still arriving.' : 'Test ended: {reason}', { reason: event.reason });
@@ -221,7 +239,12 @@ export class LoadTest {
     this.message = message('Requesting stop …'); this.changed();
     try {
       await this.request('sender', 'LAB STOP', 'stop');
-      this.active = false; this.message = message('Sender acknowledged stop. Final reception measurements are still arriving.');
+      this.active = false; this.senderMode = 'stopped';
+      if (this.session) {
+        this.session.stoppedAt ??= this.elapsedMs;
+        this.session.reason ??= 'stop';
+      }
+      this.message = message('Sender acknowledged stop. Final reception measurements are still arriving.');
     } catch (error) { this.message = message('Stop not acknowledged. The firmware ends the test no later than the selected duration.'); throw error; }
     finally { this.changed(); }
   }

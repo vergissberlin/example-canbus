@@ -365,6 +365,30 @@ async function run() {
     await until(() => load.doc.querySelector('#load-test').classList.contains('is-running'));
     assert(notice.hidden, 'Old notice remains on a new test');
   });
+  await check('Test clock freezes after timeout or stop while chart observation continues', async () => {
+    const stopped=await fixture({loadTest:true});
+    stopped.click('[data-device="sender"] .connect'); stopped.click('[data-device="receiver"] .connect');
+    await until(() => !stopped.doc.querySelector('#load-start').disabled);
+    stopped.doc.querySelector('#load-duration').value='50';
+    stopped.click('#load-start');
+    await until(() => stopped.doc.querySelector('#load-test').classList.contains('is-running'));
+    let id=stopped.ports[0].test;
+    stopped.ports[0].send(senderStats(id).replace('running=1','running=0').replace('elapsed_ms=1000','elapsed_ms=50000'));
+    stopped.ports[0].send(`LAB END role=sender test=${id} reason=timeout\n`);
+    stopped.ports[0].send(senderStats(id).replace('running=1','running=0').replace('elapsed_ms=1000','elapsed_ms=200000').replace('queued_fps=100','queued_fps=0'));
+    await until(() => stopped.doc.querySelector('#load-elapsed').textContent === 'Completed · 50.0 / 50 s');
+    assert(stopped.doc.querySelector('#load-stop').disabled,'Stop remains enabled after timeout');
+    assert(stopped.doc.querySelector('#load-freshness').textContent.includes('no load test is running'),'Observation not explained');
+    stopped.click('#load-start');
+    await until(() => stopped.doc.querySelector('#load-test').classList.contains('is-running'));
+    id=stopped.ports[0].test;
+    stopped.ports[0].send(senderStats(id).replace('elapsed_ms=1000','elapsed_ms=7000'));
+    await until(() => stopped.doc.querySelector('#load-elapsed').textContent.includes('7.0 / 50 s'));
+    stopped.click('#load-stop');
+    await until(() => stopped.doc.querySelector('#load-stop').disabled);
+    stopped.ports[0].send(senderStats(id).replace('running=1','running=0').replace('elapsed_ms=1000','elapsed_ms=200000').replace('queued_fps=100','queued_fps=0'));
+    await until(() => stopped.doc.querySelector('#load-elapsed').textContent === 'Stopped · 7.0 / 50 s');
+  });
   // Leave a clean simulated view for visual inspection, never the real USB page.
   const preview = await fixture({loadTest:true});
   preview.click('[data-device="sender"] .connect'); preview.click('[data-device="receiver"] .connect');

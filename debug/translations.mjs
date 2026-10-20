@@ -1,5 +1,11 @@
 // English source templates are translation keys. Keep placeholders identical in both languages.
 export const german = {
+  "Completed": "Beendet",
+  "Stopped": "Gestoppt",
+  "Running": "Läuft",
+  "Preparing": "Vorbereitung",
+  "Status unknown": "Status unbekannt",
+  "Test ended. The chart continues observing status reports; no load test is running.": "Test beendet. Das Diagramm beobachtet weiterhin Statusmeldungen; es läuft kein Lasttest.",
   "CAN/LAB — USB Debug Console & CAN Load Tests": "CAN/LAB — USB-Debug-Konsole & CAN-Lasttests",
   "Open CAN/LAB Debug Console": "CAN/LAB-Debug-Konsole öffnen",
   "Language": "Sprache",

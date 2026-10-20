@@ -226,3 +226,26 @@ test('recovery notice follows bus-off, recovered demo and explicit stop', async 
   await c.stop();
   assert.equal(c.recovery,null);
 });
+
+test('completed test duration freezes while observation timestamps advance', async () => {
+  const {controller:c}=harness();await c.start(100,50);
+  c.accept('sender',{...tx(101),running:0,elapsed_ms:50000});
+  c.accept('sender',{type:'end',role:'sender',test:101,reason:'timeout'});
+  c.accept('sender',{...tx(101),running:0,elapsed_ms:200000,queued_fps:0});
+  assert.equal(c.elapsedMs,50000);
+  assert.equal(c.session.tx.elapsed_ms,200000);
+  assert.equal(c.canStop,false);
+  assert.equal(c.session.reason,'timeout');
+});
+test('manual stop freezes elapsed time and disables stop until another test or demo starts', async () => {
+  const {controller:c}=harness();await c.start(100,50);
+  c.accept('sender',{...tx(101),elapsed_ms:7000});
+  assert.equal(c.canStop,true);
+  await c.stop();
+  c.accept('sender',{...tx(101),running:0,elapsed_ms:200000,queued_fps:0});
+  assert.equal(c.elapsedMs,7000);
+  assert.equal(c.session.reason,'stop');
+  assert.equal(c.canStop,false);
+  c.accept('sender',{type:'recovered',role:'sender',test:101,demo:1});
+  assert.equal(c.canStop,true,'Recovered demo must still be stoppable');
+});

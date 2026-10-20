@@ -232,7 +232,7 @@ function renderLoad() {
   const session = loadTest.session, tx = session?.tx, rx = session?.rx;
   $('#load-start').disabled = !loadTest.ready || loadTest.busy || loadTest.active;
   $('#load-rate-apply').disabled = !loadTest.active || loadTest.busy;
-  $('#load-stop').disabled = !loadTest.boards.sender.connected || !loadTest.boards.sender.ready;
+  $('#load-stop').disabled = !loadTest.canStop;
   $('#load-duration').disabled = loadTest.active || loadTest.busy;
   $('#load-rate').disabled = loadTest.busy;
   $('#load-slider').disabled = loadTest.busy;
@@ -254,9 +254,14 @@ function renderLoad() {
   const count = n => n === undefined ? '—' : number(n);
   $('#load-errors').textContent = `${count(tx?.errors)} / ${count(rx?.errors)}`;
   $('#load-missed').textContent = `${count(rx?.missed)} / ${count(rx?.overrun)}`;
-  $('#load-elapsed').textContent = tx ? `${number(tx.elapsed_ms / 1000, 1)} / ${session.seconds} s` : t('No load test yet');
+  const phase = session?.reason === 'timeout' ? 'Completed' : session?.reason ? 'Stopped'
+    : loadTest.active ? 'Running' : loadTest.busy ? 'Preparing' : 'Status unknown';
+  $('#load-elapsed').textContent = session
+    ? `${t(phase)} · ${number(loadTest.elapsedMs / 1000, 1)} / ${number(session.seconds)} s`
+    : t('No load test yet');
   $('#load-freshness').textContent = session?.updated && Date.now() - session.updated > 3000
-    ? t('Status report older than three seconds; the last measured rate remains displayed.') : t('Firmware measurement windows · about one status report per second');
+    ? t('Status report older than three seconds; the last measured rate remains displayed.') : session?.reason ? t('Test ended. The chart continues observing status reports; no load test is running.')
+      : t('Firmware measurement windows · about one status report per second');
   const enabled = [...document.querySelectorAll('[data-chart-series]:checked')].map(input => input.value);
   const chart = timeline(session?.samples, enabled);
   for (const series of CHART_SERIES) {
