@@ -12,6 +12,15 @@ int main() {
   assert(parse("LAB RATE 123 1").kind == Kind::Rate);
   for (const char* bad : {"LAB START 0 1 10", "LAB START 1 0 10", "LAB START 1 20001 10", "LAB START 1 1 61", "LAB START 1 1 0", "LAB START 1 -1 10", "LAB START 1 1e3 10", "LAB START 4294967296 1 10", "LAB START 1 1 10 extra", "LAB STOP extra", "LAB RATE 1 9999999999999999999999999"}) assert(parse(bad).kind == Kind::Invalid);
   assert(parse("quiet").kind == Kind::Unknown);
+  RecoveryDemo recovery;
+  assert(!recovery.recovered(true)); // A stopped sender must not spontaneously restart.
+  recovery.interrupted(true);
+  assert(!recovery.recovered(false)); // Failed controller restart must not start sending.
+  recovery.interrupted(false); // Repeated BUS_OFF observations preserve the intent.
+  assert(recovery.recovered(true));
+  assert(!recovery.recovered(true)); // Resume only once.
+  recovery.interrupted(true); recovery.cancel();
+  assert(!recovery.recovered(true)); // An explicit STOP during recovery wins.
   Pacer p; p.reset(0, 3);
   assert(p.take(333333).count == 0);
   assert(p.take(333334).count == 1);

@@ -199,3 +199,18 @@ test('post-stop measurement windows extend the queued-rate curve down to measure
   assert.equal(chart.paths.sender.split('M').length-1,1,'Stop must not create a missing-data gap');
   assert.equal(c.active,false);
 });
+
+test('bus-off recovery announces the demo without restarting or changing the ended load test', async () => {
+  const {controller:c,commands}=harness();await c.start(1000,10);
+  c.accept('sender',tx(101));
+  c.accept('sender',{type:'end',role:'sender',test:101,reason:'bus_off'});
+  const count=commands.length;
+  const recovery=parseLabLine('LAB RECOVERED role=sender test=101 demo=1');
+  assert.equal(recovery.type,'recovered');
+  c.accept('sender',recovery);
+  assert.equal(c.active,false);
+  assert.equal(c.session.reason,'bus_off');
+  assert.equal(c.session.rate,1000);
+  assert.equal(commands.length,count);
+  assert.match(c.message,/Demo resumed at 1 frame\/s/);
+});

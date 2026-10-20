@@ -344,7 +344,10 @@ pio run -c receiver.ini -e receiver -t upload
   This instantaneous level is not a voltage measurement and does not prove the
   line is continuously quiet. `TX_ACK=1` indicates a TX_SUCCESS alert from the
   controller; only the receiver application's RX log confirms reception there.
-- After Bus-Off, the sender starts recovery and then restarts the driver.
+- After Bus-Off, the sender stops the load test and recovers the CAN driver.
+  Once recovery succeeds, the 1-frame/s demo resumes automatically.
+  The interrupted load test remains stopped; start a new test explicitly.
+  An explicit STOP during recovery cancels automatic demo resumption.
 - If the sender reports Bus-Off and the receiver sees no frames, check for about
   3.3 V directly between `3V3` and `GND` on each powered CAN module.
 - With power disconnected, measure between CANH and CANL: about **60 ohms**

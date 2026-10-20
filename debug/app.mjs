@@ -1,6 +1,6 @@
 import { parseLine, counterGap, LineBuffer } from './protocol.mjs';
 import { CommunicationView, loadCommunication } from './communication.mjs?v=builtin-termination';
-import { LoadTest, parseLabLine, timeline, CHART_SERIES } from './load-test.mjs?v=auto-demo1';
+import { LoadTest, parseLabLine, timeline, CHART_SERIES } from './load-test.mjs?v=recovery-demo1';
 
 const $ = selector => document.querySelector(selector);
 const MAX_LINES = 2000;

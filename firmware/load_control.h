@@ -48,6 +48,19 @@ inline Command parse(const char* text) {
   return cmd;
 }
 
+// A bus fault may resume only the low-rate demo, never the interrupted load.
+class RecoveryDemo {
+  bool pending = false;
+public:
+  void interrupted(bool wasSending) { pending = pending || wasSending; }
+  void cancel() { pending = false; }
+  bool recovered(bool controllerStarted) {
+    if (!controllerStarted || !pending) return false;
+    pending = false;
+    return true;
+  }
+};
+
 struct Due { uint32_t count, skipped; };
 class Pacer {
   uint32_t last = 0, rate = 1;

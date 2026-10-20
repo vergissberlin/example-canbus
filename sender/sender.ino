@@ -11,6 +11,7 @@ constexpr int LED_PIN = 8; // SuperMini onboard LED: active low.
 uint32_t ledUntil = 0;
 bool ledActive = false;
 canlab::Pacer pacer;
+canlab::RecoveryDemo recoveryDemo;
 bool running = false, demo = true;
 uint32_t testId = 0, targetRate = 1, started = 0, durationMs = 0;
 uint32_t counter = 0, queued = 0, rejected = 0, skipped = 0, cancelled = 0;
@@ -37,6 +38,7 @@ void stats() {
 }
 
 void stopLoad(const char* reason) {
+  if (strcmp(reason, "bus_off")) recoveryDemo.cancel();
   demo = false;
   if (running) {
     running = false;
@@ -126,10 +128,17 @@ void loop() {
   twai_status_info_t s = {};
   if (twai_get_status_info(&s) != ESP_OK) { stopLoad("driver_error"); delay(1); return; }
   if (s.state == TWAI_STATE_BUS_OFF) {
+    recoveryDemo.interrupted(running || demo);
     stopLoad("bus_off");
     Serial.println("Bus-Off -> Recovery"); twai_initiate_recovery();
   } else if (s.state == TWAI_STATE_STOPPED) {
-    twai_start(); // Recovery never automatically resumes a load test.
+    const bool restarted = twai_start() == ESP_OK;
+    if (recoveryDemo.recovered(restarted)) {
+      // Keep the ended test's counters and clock; demo frames use the normal four-byte payload.
+      demo = true; lastDemo = millis();
+      Serial.printf("LAB RECOVERED role=sender test=%lu demo=1\n", (unsigned long)testId);
+      Serial.println("CAN recovered -> Demo at 1 frame/s; load test remains stopped");
+    }
   } else if (s.state == TWAI_STATE_RUNNING) {
     if (running && (uint32_t)(now - started) >= durationMs) stopLoad("timeout");
     if (running) {

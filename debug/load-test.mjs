@@ -8,7 +8,7 @@ export function settings(rate, seconds) {
   return { rate: fps, seconds: duration };
 }
 export function parseLabLine(line) {
-  const match = /^LAB (HELLO|ACK|STATS|END|ERROR) (.+)$/.exec(line);
+  const match = /^LAB (HELLO|ACK|STATS|END|ERROR|RECOVERED) (.+)$/.exec(line);
   if (!match || line.length > 1024) return null;
   const values = Object.create(null);
   for (const token of match[2].split(' ')) {
@@ -28,6 +28,7 @@ export function parseLabLine(line) {
     : type === 'ack' ? ['test', 'command']
     : type === 'end' ? ['test', 'reason']
     : type === 'error' ? ['reason']
+    : type === 'recovered' ? ['test', 'demo']
     : values.role === 'sender'
       ? ['test', 'running', 'target', 'queued', 'queued_fps', 'rejected', 'skipped', 'cancelled', 'pending', 'failed', 'errors', 'tec', 'rec', 'state', 'elapsed_ms']
       : ['test', 'rx', 'rx_fps', 'counter', 'gaps', 'duplicates', 'missed', 'overrun', 'errors', 'tec', 'rec', 'state', 'elapsed_ms'];
@@ -101,6 +102,9 @@ export class LoadTest {
       for (const [key, pending] of this.pending) if (key.startsWith(role + ':')) {
         this.cancel(pending.timer); this.pending.delete(key); pending.reject(new Error(this.message));
       }
+    }
+    if (event.type === 'recovered' && role === 'sender' && event.demo === 1) {
+      this.message = 'CAN recovered · Demo resumed at 1 frame/s. The interrupted load test remains stopped.';
     }
     if (this.session && event.test === this.session.id) {
       if (event.type === 'stats') {
