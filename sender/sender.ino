@@ -7,6 +7,9 @@
 constexpr gpio_num_t CAN_TX_PIN = GPIO_NUM_5;
 constexpr gpio_num_t CAN_RX_PIN = GPIO_NUM_4;
 constexpr uint32_t CAN_ID = 0x123;
+constexpr int LED_PIN = 8; // SuperMini onboard LED: active low.
+uint32_t ledUntil = 0;
+bool ledActive = false;
 canlab::Pacer pacer;
 bool running = false, demo = true;
 uint32_t testId = 0, targetRate = 1, started = 0, ended = 0, durationMs = 0;
@@ -93,7 +96,7 @@ void serialCommands() {
 }
 
 void setup() {
-  Serial.begin(115200); delay(1500);
+  Serial.begin(115200); pinMode(LED_PIN, OUTPUT); digitalWrite(LED_PIN, HIGH); delay(1500);
   twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT(CAN_TX_PIN, CAN_RX_PIN, TWAI_MODE_NORMAL);
   g.tx_queue_len = 32;
   g.alerts_enabled = TWAI_ALERT_TX_SUCCESS | TWAI_ALERT_BUS_ERROR | TWAI_ALERT_BUS_OFF;
@@ -135,8 +138,18 @@ void loop() {
     }
   }
   uint32_t alerts = 0;
-  if (twai_read_alerts(&alerts, 0) == ESP_OK && !running && demo && alerts) {
-    Serial.printf("DIAG TX_ACK=%d BUS_ERROR=%d\n", !!(alerts & TWAI_ALERT_TX_SUCCESS), !!(alerts & TWAI_ALERT_BUS_ERROR));
+  if (twai_read_alerts(&alerts, 0) == ESP_OK) {
+    // ACK-confirmed transmissions only. Coalesce rapid successes; never delay CAN for an LED.
+    if ((alerts & TWAI_ALERT_TX_SUCCESS) && !(alerts & TWAI_ALERT_BUS_OFF)) {
+      digitalWrite(LED_PIN, LOW); ledUntil = millis() + 20; ledActive = true;
+    }
+    if (alerts & TWAI_ALERT_BUS_OFF) { digitalWrite(LED_PIN, HIGH); ledActive = false; }
+    if (!running && demo && alerts) {
+      Serial.printf("DIAG TX_ACK=%d BUS_ERROR=%d\n", !!(alerts & TWAI_ALERT_TX_SUCCESS), !!(alerts & TWAI_ALERT_BUS_ERROR));
+    }
+  }
+  if (ledActive && (int32_t)(millis() - ledUntil) >= 0) {
+    digitalWrite(LED_PIN, HIGH); ledActive = false;
   }
   if ((uint32_t)(millis() - lastReport) >= 1000) stats();
   delay(1);

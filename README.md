@@ -153,6 +153,13 @@ umgestellt. Die Zielrate ist angebotene Last und kann die Buskapazität überste
   TWAI-Fehlerzähler relativ zum Beginn dieses Tests. Sie sind keine Messung
   der elektrischen Busauslastung und keine automatische Verlustquote.
 
+Die LED auf dem Sender-SuperMini (GPIO 8, aktiv Low) leuchtet bei einer
+ACK-bestätigten CAN-Übertragung für 20 ms. Schnelle Übertragungen verlängern
+die Leuchtphase; bei hoher Rate wirkt die LED dauerhaft an. Das Blinken
+blockiert die CAN-Verarbeitung nicht. Die blaue Senderleitung in der
+Browser-Grafik zeigt dagegen das Einreihen von Frames anhand der USB-Logs,
+im Lasttest zusammengefasst pro Statusbericht; sie ist kein ACK-Nachweis.
+
 Das Zeitdiagramm zeigt die letzten 60 Sekunden auf einer Sekundenachse: blau
 und gestrichelt die zum Senden eingereihten Frames/s, grün die tatsächlich
 empfangenen Frames/s. TX ist keine Bestätigung einer erfolgreichen Übertragung.
@@ -193,10 +200,14 @@ Nur in diesem getrennten Breadboard-Versuchsaufbau verwenden.
 Befehlsparsers und der Taktung sowie beide PlatformIO-Builds sind lokal geprüft.
 Alle 29 JavaScript-Tests und 18 Browser-Integrationstests bestehen; auch der
 native C++-Test und beide PlatformIO-Builds sind erfolgreich. Die Browser-
-Prüfseite verwendet ausdrücklich simulierte USB-Ports. Für diese
-neue Lasttest-Firmware steht die Hardware-Abnahme mit einstellbarer Rate noch
-aus, da beim Abschluss keine ESPs per USB angeschlossen waren. Die oben
-beschriebenen erfolgreichen Hardware-Tests betreffen den vorherigen Demo-Stand.
+Prüfseite verwendet ausdrücklich simulierte USB-Ports. Am 20. Oktober 2026
+wurden beide ESPs mit der Lasttest-Firmware geflasht und ein echter Test mit
+100 Frames/s für drei Sekunden durchgeführt: 299 Frames eingereiht und alle
+299 empfangen, keine Zählerlücken, Queue-Rückweisungen oder Busfehler; der
+Sender stoppte automatisch. Nach Ergänzen der Sender-LED wurden außerdem
+fünf aufeinanderfolgende Demo-Frames mit CAN-ACK und passendem Receiver-Log
+bestätigt. Die sichtbare LED selbst wurde nicht per Kamera überprüft. Das ist
+keine Abnahme der maximalen Framerate oder aller Laststufen.
 
 ### Live-Signalweg
 
