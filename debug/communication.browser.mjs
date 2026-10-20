@@ -40,10 +40,10 @@ function bootstrap(options) {
 }
 
 async function fixture(options = {}) {
-  const html = await (await fetch('./index.html?v=diagnostics1', {cache:'no-store'})).text();
+  const html = await (await fetch('../index.html?v=diagnostics1', {cache:'no-store'})).text();
   const iframe = document.createElement('iframe');
   iframe.title = 'Simulated CAN/LAB console'; iframe.style.width = '1160px';
-  const base = new URL('./', location.href).href;
+  const base = new URL('../', location.href).href;
   iframe.srcdoc = html.replace('<head>', `<head><base href="${base}"><script>(${bootstrap.toString()})(${JSON.stringify(options)})</script>`);
   document.querySelector('#fixtures').replaceChildren(iframe);
   await until(() => iframe.contentDocument?.querySelector('#communication-diagram') && iframe.contentWindow.testPorts);

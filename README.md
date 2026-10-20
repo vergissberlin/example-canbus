@@ -287,7 +287,7 @@ c++ -std=c++11 -Wall -Wextra -Werror tests/load_control_test.cpp -o /tmp/canlab-
 ```
 
 For browser integration tests, start the local server, open
-http://localhost:8765/communication.browser.test.html and click **Run tests**.
+http://localhost:8765/debug/communication.browser.test.html and click **Run tests**.
 The clearly labeled test page uses virtual USB ports in an isolated iframe and
 checks TX/RX, pause/filter behavior, event sequences, errors, disconnecting,
 mobile layout, the reduced-motion rule and SVG load failure. It does not confirm
