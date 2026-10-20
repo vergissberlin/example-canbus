@@ -240,7 +240,7 @@ for (const name of ['sender', 'receiver']) {
 if (!supported) {
   $('#compatibility').hidden = false;
   $('#compatibility').textContent = !window.isSecureContext
-    ? 'Open http://localhost:8765/debug/. USB access requires localhost or HTTPS.'
+    ? 'Open http://localhost:8765/. USB access requires localhost or HTTPS.'
     : 'This browser does not support Web Serial. Open the address in Microsoft Edge or Google Chrome on your Mac.';
 }
 

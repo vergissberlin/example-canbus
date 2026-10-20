@@ -60,7 +60,7 @@ def generate():
                     '-font', 'DejaVu-Sans', '-pointsize', round(unit * .024),
                     '-fill', '#617167', '-annotate', f'+0+{round(unit * .20)}', 'Two nodes. One bus.',
                     '-strip', SPLASH / f'apple-splash-{w}x{h}.png')
-    for name, prefix in [('index.html', './'), ('debug/index.html', '../')]:
+    for name, prefix in [('index.html', './')]:
         tags = [
             f'  <link rel="manifest" href="{prefix}manifest.webmanifest">',
             '  <meta name="theme-color" content="#15271f">',
@@ -91,7 +91,7 @@ def generate():
         else:
             text = text.replace('</head>', block + '\n</head>')
         path.write_text(text)
-    print(f'Generated icons and {len(SCREENS) * 2} device splash screens; updated both HTML heads.')
+    print(f'Generated icons and {len(SCREENS) * 2} device splash screens; updated the app HTML head.')
 
 if __name__ == '__main__':
     generate()

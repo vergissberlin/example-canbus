@@ -86,9 +86,9 @@ the cause of this behavior was not conclusively determined.
 
 ## Browser debugging (without Arduino IDE)
 
-[Open CAN/LAB online](https://vergissberlin.github.io/example-canbus/debug/)
+[Open CAN/LAB online](https://canlab.andrelademann.de/)
 
-The local [CAN/LAB console](debug/index.html) reads USB output from sketches
+The local [CAN/LAB console](index.html) reads USB output from sketches
 already flashed onto the boards. It can open both boards simultaneously,
 show RX counters and counter gaps, and filter, pause and export logs as text.
 Reading existing logs requires no firmware changes;
@@ -98,7 +98,7 @@ The console supports English firmware logs only. Flash the current sketches
 onto both boards before using it.
 
 1. Run `./debug/serve.command` from the repository (on macOS, double-clicking also works).
-2. Open **http://localhost:8765/debug/** in **Microsoft Edge or Google Chrome**
+2. Open **http://localhost:8765/** in **Microsoft Edge or Google Chrome**
    on your Mac. The browser must support Web Serial.
 3. Connect both ESPs via USB; with separate USB power supplies, do not fit a 5V
    jumper between the boards. Close other serial monitors.
@@ -118,7 +118,7 @@ Stop the server with `Ctrl+C`.
 
 ### Install as a PWA
 
-CAN/LAB can be installed from the [GitHub Page](https://vergissberlin.github.io/example-canbus/debug/).
+CAN/LAB can be installed from the [GitHub Page](https://canlab.andrelademann.de/).
 In Chrome or Edge on a supported desktop or Android device, use the browser's
 **Install app** action. On iPhone or iPad, open the page in Safari and choose
 **Share → Add to Home Screen**. The app opens in its own window with a matching
@@ -287,7 +287,7 @@ c++ -std=c++11 -Wall -Wextra -Werror tests/load_control_test.cpp -o /tmp/canlab-
 ```
 
 For browser integration tests, start the local server, open
-http://localhost:8765/debug/communication.browser.test.html and click **Run tests**.
+http://localhost:8765/communication.browser.test.html and click **Run tests**.
 The clearly labeled test page uses virtual USB ports in an isolated iframe and
 checks TX/RX, pause/filter behavior, event sequences, errors, disconnecting,
 mobile layout, the reduced-motion rule and SVG load failure. It does not confirm

@@ -4,7 +4,7 @@
   "short_name": "CAN/LAB",
   "description": "USB debugging and adjustable CAN load tests for ESP32-C3 boards, directly in your browser.",
   "lang": "en",
-  "start_url": "./debug/",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

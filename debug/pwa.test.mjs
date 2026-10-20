@@ -78,7 +78,7 @@ test('PWA activation cleans only old caches belonging to this project', async ()
 
 test('PWA manifest icons exist with their declared PNG dimensions', () => {
   const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
-  assert.equal(manifest.start_url, './debug/');
+  assert.equal(manifest.start_url, './');
   assert.equal(manifest.scope, './');
   for (const icon of manifest.icons) {
     const png = readFileSync(new URL('../' + icon.src, import.meta.url));
