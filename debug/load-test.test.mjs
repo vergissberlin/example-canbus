@@ -214,3 +214,15 @@ test('bus-off recovery announces the demo without restarting or changing the end
   assert.equal(commands.length,count);
   assert.match(c.message,/Demo resumed at 1 frame\/s/);
 });
+
+test('recovery notice follows bus-off, recovered demo and explicit stop', async () => {
+  const {controller:c}=harness();await c.start(100,10);
+  assert.equal(c.recovery,null);
+  c.accept('sender',{...tx(101),state:2});
+  assert.equal(c.recovery,'recovering');
+  c.accept('sender',{type:'end',role:'sender',test:101,reason:'bus_off'});
+  c.accept('sender',parseLabLine('LAB RECOVERED role=sender test=101 demo=1'));
+  assert.equal(c.recovery,'recovered');
+  await c.stop();
+  assert.equal(c.recovery,null);
+});

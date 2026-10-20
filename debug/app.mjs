@@ -1,6 +1,6 @@
 import { parseLine, counterGap, LineBuffer } from './protocol.mjs';
 import { CommunicationView, loadCommunication } from './communication.mjs?v=builtin-termination';
-import { LoadTest, parseLabLine, timeline, CHART_SERIES } from './load-test.mjs?v=recovery-demo1';
+import { LoadTest, parseLabLine, timeline, CHART_SERIES } from './load-test.mjs?v=recovery-notice1';
 
 const $ = selector => document.querySelector(selector);
 const MAX_LINES = 2000;
@@ -228,6 +228,12 @@ function renderLoad() {
   $('#load-rate').disabled = loadTest.busy;
   $('#load-slider').disabled = loadTest.busy;
   $('#load-status').textContent = loadTest.message;
+  const recoveryNotice = $('#can-recovery-notice');
+  recoveryNotice.hidden = !loadTest.recovery;
+  recoveryNotice.dataset.state = loadTest.recovery ?? '';
+  recoveryNotice.textContent = loadTest.recovery === 'recovered'
+    ? 'CAN controller recovered · Default demo resumed at 1 frame/s. The interrupted load test remains stopped.'
+    : 'CAN connection interrupted (Bus-Off) · Waiting for recovery. The load test has stopped.';
   $('#load-test').classList.toggle('is-running', loadTest.active);
   $('#load-target').textContent = session ? session.rate.toLocaleString('en-US') : '—';
   $('#load-actual').textContent = rx ? rx.rx_fps.toLocaleString('en-US') : '—';

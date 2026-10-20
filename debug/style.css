@@ -45,3 +45,7 @@
 .chart-tooltip-row{display:flex;align-items:baseline;justify-content:space-between;gap:20px}
 .chart-tooltip-row span:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--series-color);margin-right:7px}
 .chart-tooltip-row strong{font-weight:600;text-align:right}
+
+.can-recovery-notice{margin:12px 0;padding:12px 14px;border:1px solid #d7b671;border-left:3px solid #b57716;border-radius:6px;background:#fff0d0;color:#574215;font-size:12px;line-height:1.6}
+.can-recovery-notice[hidden]{display:none}
+.can-recovery-notice[data-state="recovered"]{background:#e4e8d9;border-color:#a8b795;border-left-color:#547421;color:#263e25}

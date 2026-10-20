@@ -263,6 +263,25 @@ async function run() {
     assert(load.doc.querySelector('#load-start').disabled, 'Start possible after disconnecting');
     assert(load.iframe.contentWindow.testCommands.at(-1).command === 'LAB STOP', 'No stop on disconnect');
   });
+  await check('Chart shows bus-off recovery and confirmed one-frame-per-second fallback', async () => {
+    const load=await fixture({loadTest:true});
+    load.click('[data-device="sender"] .connect'); load.click('[data-device="receiver"] .connect');
+    await until(() => !load.doc.querySelector('#load-start').disabled);
+    load.click('#load-start');
+    await until(() => load.doc.querySelector('#load-test').classList.contains('is-running'));
+    const id=load.ports[0].test;
+    const notice=load.doc.querySelector('#can-recovery-notice');
+    load.ports[0].send(`LAB END role=sender test=${id} reason=bus_off\n`);
+    await until(() => !notice.hidden && notice.dataset.state === 'recovering');
+    assert(notice.textContent.includes('Waiting for recovery'), 'Recovery warning missing');
+    load.ports[0].send(`LAB RECOVERED role=sender test=${id} demo=1\n`);
+    await until(() => notice.dataset.state === 'recovered');
+    assert(notice.textContent.includes('1 frame/s') && notice.textContent.includes('remains stopped'), 'Confirmed fallback missing');
+    assert(!load.doc.querySelector('#load-test').classList.contains('is-running'), 'Interrupted test resumed');
+    load.click('#load-start');
+    await until(() => load.doc.querySelector('#load-test').classList.contains('is-running'));
+    assert(notice.hidden, 'Old notice remains on a new test');
+  });
   // Leave a clean simulated view for visual inspection, never the real USB page.
   const preview = await fixture({loadTest:true});
   preview.click('[data-device="sender"] .connect'); preview.click('[data-device="receiver"] .connect');
@@ -277,6 +296,11 @@ async function run() {
   await until(() => preview.doc.querySelectorAll('circle[data-series=sender]').length === 10);
   preview.click('#load-stop');
   preview.doc.querySelector('#load-title').textContent='SIMULATION · diagnostic chart';
+  if (new URL(location.href).searchParams.has('recovery')) {
+    preview.ports[0].send(`LAB END role=sender test=${id} reason=bus_off\n`);
+    preview.ports[0].send(`LAB RECOVERED role=sender test=${id} demo=1\n`);
+    await until(() => preview.doc.querySelector('#can-recovery-notice').dataset.state === 'recovered');
+  }
   if (new URL(location.href).searchParams.has('preview')) {
     preview.doc.querySelector('#load-test').scrollIntoView();
     preview.iframe.scrollIntoView();

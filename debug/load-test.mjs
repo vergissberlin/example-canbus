@@ -58,10 +58,12 @@ export class LoadTest {
     this.message = 'Connect both boards. The load test requires CAN-LAB firmware.';
     this.nextId = this.now() >>> 0;
     this.epoch = 0;
+    this.recovery = null;
   }
   get ready() { return ROLES.every(role => this.boards[role].connected && this.boards[role].ready); }
   connection(role, connected) {
     this.boards[role] = { connected, ready: false };
+    if (role === 'sender') this.recovery = null;
     if (!connected) {
       this.epoch++;
       for (const [key, pending] of this.pending) if (key.startsWith(role + ':')) {
@@ -103,7 +105,11 @@ export class LoadTest {
         this.cancel(pending.timer); this.pending.delete(key); pending.reject(new Error(this.message));
       }
     }
+    if (event.type === 'stats' && role === 'sender' && (event.state === 2 || event.state === 3)) {
+      this.recovery = 'recovering';
+    }
     if (event.type === 'recovered' && role === 'sender' && event.demo === 1) {
+      this.recovery = 'recovered';
       this.message = 'CAN recovered · Demo resumed at 1 frame/s. The interrupted load test remains stopped.';
     }
     if (this.session && event.test === this.session.id) {
@@ -131,6 +137,7 @@ export class LoadTest {
       }
       if (event.type === 'end') {
         this.active = false; this.session.reason = event.reason;
+        if (event.reason === 'bus_off') this.recovery = 'recovering';
         this.message = event.reason === 'timeout' ? 'Test duration reached. Sender stopped; final reception measurements are still arriving.'
           : event.reason === 'stop' ? 'Sender stopped; final reception measurements are still arriving.' : `Test ended: ${event.reason}`;
       }
@@ -169,6 +176,7 @@ export class LoadTest {
   async start(rate, seconds) {
     const chosen = settings(rate, seconds);
     if (!this.ready || this.busy || this.active) throw new Error('Both matching boards must be connected and ready.');
+    this.recovery = null;
     this.busy = true; this.message = 'Preparing receiver and starting sender …'; this.changed();
     const epoch = ++this.epoch;
     const stillCurrent = () => { if (epoch !== this.epoch) throw new Error('Start canceled by stop or disconnect.'); };
@@ -206,6 +214,7 @@ export class LoadTest {
     if (!this.boards.sender.connected) throw new Error('Sender not connected.');
     this.epoch++;
     // STOP stays available even if another command is awaiting a reply.
+    this.recovery = null;
     this.message = 'Requesting stop …'; this.changed();
     try {
       await this.request('sender', 'LAB STOP', 'stop');
