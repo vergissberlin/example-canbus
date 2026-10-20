@@ -18,7 +18,7 @@ for name in ['index.html', 'manifest.webmanifest', 'browserconfig.xml']:
     shutil.copyfile(ROOT / name, OUTPUT / name)
 for directory in ['debug', 'docs']:
     (OUTPUT / directory).mkdir(exist_ok=True)
-for name in ['index.html', 'style.css', 'app.mjs', 'pwa.mjs', 'protocol.mjs', 'communication.mjs', 'load-test.mjs']:
+for name in ['index.html', 'style.css', 'app.mjs', 'i18n.mjs', 'translations.mjs', 'pwa.mjs', 'protocol.mjs', 'communication.mjs', 'load-test.mjs']:
     shutil.copyfile(ROOT / 'debug' / name, OUTPUT / 'debug' / name)
 for name in ['canbus-breadboard.svg', 'canbus-communication.svg', 'canlab-opengraph.png']:
     shutil.copyfile(ROOT / 'docs' / name, OUTPUT / 'docs' / name)

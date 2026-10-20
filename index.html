@@ -85,8 +85,11 @@
   <link rel="apple-touch-startup-image" href="./pwa/splash/apple-splash-2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
   <link rel="apple-touch-startup-image" href="./pwa/splash/apple-splash-2732x2048.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
   <!-- End PWA metadata -->
+  <script type="module" src="debug/i18n.mjs"></script>
+  <link rel="stylesheet" href="debug/style.css">
 </head>
 <body>
+  <header><a class="wordmark" href="debug/">CAN<span>/</span>LAB</a><label class="language-select"><span>Language</span> <select data-language aria-label="Language"><option value="auto">Automatic</option><option value="de" lang="de">Deutsch</option><option value="en" lang="en">English</option></select></label></header>
   <a href="debug/">Open CAN/LAB Debug Console</a>
 </body>
 </html>

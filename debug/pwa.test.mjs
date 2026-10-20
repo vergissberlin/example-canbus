@@ -41,6 +41,8 @@ test('PWA installs only project assets and propagates incomplete precache failur
   await w.lifecycle('install');
   assert.ok(urls.every(url => url.startsWith(w.scope)));
   assert.ok(urls.includes(w.scope + 'debug/app.mjs'));
+  assert.ok(urls.includes(w.scope + 'debug/i18n.mjs'));
+  assert.ok(urls.includes(w.scope + 'debug/translations.mjs'));
   const broken = worker({ addAll: async () => { throw new Error('Missing asset'); } });
   await assert.rejects(broken.lifecycle('install'), /Missing asset/);
 });
@@ -51,7 +53,11 @@ test('PWA refreshes online files and serves cached query-versioned modules offli
   assert.equal(await (await w.request('debug/app.mjs?v=first')).text(), 'revision 1');
   revision = 2;
   assert.equal(await (await w.request('debug/app.mjs?v=second')).text(), 'revision 2');
+  await w.request('debug/i18n.mjs');
+  await w.request('debug/translations.mjs');
   online = false;
+  assert.equal(await (await w.request('debug/i18n.mjs')).text(), 'revision 2');
+  assert.equal(await (await w.request('debug/translations.mjs')).text(), 'revision 2');
   assert.equal(await (await w.request('debug/app.mjs?v=second')).text(), 'revision 2');
 });
 

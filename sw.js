@@ -4,7 +4,7 @@ const PREFIX = `canlab:${new URL(self.registration.scope).pathname}:`;
 const CACHE = PREFIX + VERSION;
 const FILES = [
   './', './index.html', './debug/', './debug/index.html',
-  './debug/style.css', './debug/app.mjs', './debug/pwa.mjs',
+  './debug/i18n.mjs', './debug/translations.mjs', './debug/style.css', './debug/app.mjs', './debug/pwa.mjs',
   './debug/protocol.mjs', './debug/communication.mjs', './debug/load-test.mjs',
   './docs/canbus-communication.svg', './docs/canbus-breadboard.svg',
   './manifest.webmanifest', './pwa/icons/icon-192.png', './pwa/icons/icon-512.png',
