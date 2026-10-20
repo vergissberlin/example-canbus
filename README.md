@@ -185,11 +185,13 @@ pio run -c receiver.ini -e receiver -t upload
 ```
 
 ## Nutzung (Arduino IDE)
+
 1. Board: *ESP32C3 Dev Module*, **USB CDC On Boot: Enabled**.
 2. `sender/sender.ino` auf Board #1, `receiver/receiver.ino` auf Board #2 flashen.
 3. Serial Monitor (115200 Baud) oeffnen.
 
 ## Troubleshooting
+
 - Die Diagnose-Firmware gibt `DIAG`-Zeilen mit Treiberzustand (`0` gestoppt,
   `1` aktiv, `2` Bus-Off, `3` Recovery), Fehlerzählern und dem abgetasteten
   RX-Pegel aus. Der Momentanpegel ist keine Spannungsmessung und beweist keine
@@ -202,6 +204,3 @@ pio run -c receiver.ini -e receiver -t upload
 - `TX FEHLER`: keine Gegenstelle, CANH/CANL vertauscht oder Bitrate unterschiedlich.
 - Bitrate steht in beiden Sketches auf 500 kbit/s.
 - GPIO 2, 8, 9 sind Strapping-Pins, nicht fuer CAN nutzen.
-
-## Lizenz
-MIT
