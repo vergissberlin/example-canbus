@@ -1,7 +1,7 @@
 import { message, text, t, number, locale, language, onLanguageChange, LocalizedError, errorMessage } from './i18n.mjs';
 import { parseLine, counterGap, LineBuffer } from './protocol.mjs';
-import { CommunicationView, loadCommunication } from './communication.mjs';
-import { LoadTest, parseLabLine, timeline } from './load-test.mjs?v=timeline1';
+import { CommunicationView, loadCommunication } from './communication.mjs?v=builtin-termination';
+import { LoadTest, parseLabLine, timeline, CHART_SERIES } from './load-test.mjs?v=recovery-notice1';
 
 const $ = selector => document.querySelector(selector);
 const MAX_LINES = 2000;
@@ -23,7 +23,14 @@ function log(source, message, kind = null) {
   logs.push({ time: new Date(), source, message, descriptor, kind: kind || parsed.kind });
   if (logs.length > MAX_LINES) logs.splice(0, logs.length - MAX_LINES);
   const device = devices.get(source);
-  if (device && lab && loadTest.accept(source, lab)) loadActivity(device, lab);
+  if (device && lab && loadTest.accept(source, lab)) {
+    loadActivity(device, lab);
+    if (source === 'sender' && lab.type === 'hello' && lab.role === 'sender'
+        && loadTest.boards.sender.ready && lab.demo === 1 && !device.demoStarted) {
+      device.demoStarted = true;
+      void loadTest.demo().catch(error => log(source, message('Automatic demo could not start: {detail}', { detail: errorMessage(error) }), 'error'));
+    }
+  }
   if (device) communication.event(source, kind ? { kind } : parsed);
   if (device && parsed.kind === 'rx') {
     device.lastRx = Date.now();
@@ -74,6 +81,7 @@ async function connect(device) {
     await port.open({ baudRate: 115200 });
     device.port = port;
     device.previousCounter = null;
+    device.demoStarted = false;
     device.labTotals = null;
     device.lastRx = 0;
     device.stopping = false;
@@ -171,6 +179,55 @@ function loadActivity(device, event) {
   device.labTotals = event;
 }
 
+let hoverPoints = [], hoverPosition = null;
+const chartSvg = document.querySelector('.load-chart');
+const chartTooltip = $('#load-chart-tooltip');
+
+function hideChartTooltip() {
+  chartTooltip.hidden = true;
+  hoverPosition = null;
+}
+
+function showChartTooltip(position) {
+  const matrix = chartSvg.getScreenCTM();
+  if (!matrix) return hideChartTooltip();
+  // Measure in screen pixels so the target stays usable when the SVG is scaled.
+  const nearby = hoverPoints.map(point => {
+    const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+    return { point, distance: Math.hypot(screen.x - position.x, screen.y - position.y) };
+  }).filter(item => item.distance <= 12).sort((a, b) => a.distance - b.distance);
+  if (!nearby.length) return hideChartTooltip();
+  const nearest = nearby[0].point;
+  const matches = nearby.filter(({point}) => Math.abs(point.x - nearest.x) < 0.5 && Math.abs(point.y - nearest.y) < 0.5);
+  const time = document.createElement('div');
+  time.className = 'chart-tooltip-time';
+  time.textContent = `${number(nearest.elapsed / 1000, 2)} s`;
+  chartTooltip.replaceChildren(time, ...matches.map(({point}) => {
+    const series = CHART_SERIES.find(item => item.id === point.series);
+    const row = document.createElement('div'); row.className = 'chart-tooltip-row';
+    const label = document.createElement('span'); label.textContent = t(series.label);
+    label.style.setProperty('--series-color', series.color);
+    const value = document.createElement('strong');
+    const unit = series.unit ? t(series.unit) : series.gauge ? t('frames pending') : t('events / {span} s', { span: number((point.span ?? 1000) / 1000, 2) });
+    value.textContent = `${point.value.toLocaleString(locale())} ${unit}`;
+    row.append(label, value); return row;
+  }));
+  chartTooltip.hidden = false;
+  hoverPosition = position;
+  const box = chartTooltip.getBoundingClientRect();
+  chartTooltip.style.left = `${Math.max(8, Math.min(position.x + 14, window.innerWidth - box.width - 8))}px`;
+  chartTooltip.style.top = `${Math.max(8, position.y + box.height + 22 > window.innerHeight ? position.y - box.height - 12 : position.y + 16)}px`;
+}
+
+chartSvg.addEventListener('pointermove', event => showChartTooltip({x:event.clientX, y:event.clientY}));
+chartSvg.addEventListener('pointerdown', event => showChartTooltip({x:event.clientX, y:event.clientY}));
+chartSvg.addEventListener('pointerleave', hideChartTooltip);
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hideChartTooltip(); });
+window.addEventListener('scroll', event => {
+  if (event.target === document || event.target === chartSvg.closest('.load-chart-scroll')) hideChartTooltip();
+}, true);
+window.addEventListener('resize', hideChartTooltip);
+
 function renderLoad() {
   const session = loadTest.session, tx = session?.tx, rx = session?.rx;
   $('#load-start').disabled = !loadTest.ready || loadTest.busy || loadTest.active;
@@ -180,12 +237,19 @@ function renderLoad() {
   $('#load-rate').disabled = loadTest.busy;
   $('#load-slider').disabled = loadTest.busy;
   $('#load-status').textContent = loadTest.message;
+  const recoveryNotice = $('#can-recovery-notice');
+  recoveryNotice.hidden = !loadTest.recovery;
+  recoveryNotice.dataset.state = loadTest.recovery ?? '';
+  recoveryNotice.textContent = t(loadTest.recovery === 'recovered'
+    ? 'CAN controller recovered · Default demo resumed at 1 frame/s. The interrupted load test remains stopped.'
+    : 'CAN connection interrupted (Bus-Off) · Waiting for recovery. The load test has stopped.');
   $('#load-test').classList.toggle('is-running', loadTest.active);
   $('#load-target').textContent = session ? session.rate.toLocaleString(locale()) : '—';
   $('#load-actual').textContent = rx ? rx.rx_fps.toLocaleString(locale()) : '—';
   $('#load-queued-rate').textContent = tx ? tx.queued_fps.toLocaleString(locale()) : '—';
   const value = (id, n) => { $(id).textContent = n === undefined ? '—' : n.toLocaleString(locale()); };
   value('#load-queued', tx?.queued); value('#load-rx-total', rx?.rx); value('#load-rejected', tx?.rejected);
+  value('#load-cancelled', tx?.cancelled); value('#load-failed', tx?.failed);
   value('#load-gaps', rx?.gaps); value('#load-skipped', tx?.skipped); value('#load-pending', tx?.pending);
   const count = n => n === undefined ? '—' : number(n);
   $('#load-errors').textContent = `${count(tx?.errors)} / ${count(rx?.errors)}`;
@@ -193,28 +257,38 @@ function renderLoad() {
   $('#load-elapsed').textContent = tx ? `${number(tx.elapsed_ms / 1000, 1)} / ${session.seconds} s` : t('No load test yet');
   $('#load-freshness').textContent = session?.updated && Date.now() - session.updated > 3000
     ? t('Status report older than three seconds; the last measured rate remains displayed.') : t('Firmware measurement windows · about one status report per second');
-  const chart = timeline(session?.samples);
-  $('#load-tx-line').setAttribute('d', chart.paths.sender);
-  $('#load-rx-line').setAttribute('d', chart.paths.receiver);
+  const enabled = [...document.querySelectorAll('[data-chart-series]:checked')].map(input => input.value);
+  const chart = timeline(session?.samples, enabled);
+  for (const series of CHART_SERIES) {
+    const path = document.querySelector(`[data-chart-path="${series.id}"]`);
+    path.setAttribute('d', chart.paths[series.id]);
+  }
   $('#load-chart-max').textContent = chart.maximum.toLocaleString(locale());
+  $('#load-diagnostic-max').textContent = chart.diagnosticMaximum.toLocaleString(locale());
   for (const label of document.querySelectorAll('[data-chart-second]')) {
     label.textContent = `${Math.round(chart.start / 1000) + Number(label.dataset.chartSecond)} s`;
   }
-  // SVG titles make each measured window inspectable without interpolating missing data.
   const dots = $('#load-chart-points');
-  const signature = language.language + JSON.stringify(chart.points);
+  const points = [...chart.points, ...chart.diagnosticPoints];
+  hoverPoints = points;
+  const signature = language.language + JSON.stringify(points);
   if (dots.dataset.samples !== signature) {
     dots.dataset.samples = signature;
-    dots.replaceChildren(...chart.points.map(point => {
+    dots.replaceChildren(...points.map(point => {
+      const series = CHART_SERIES.find(item => item.id === point.series);
       const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       dot.setAttribute('cx', point.x); dot.setAttribute('cy', point.y); dot.setAttribute('r', '3');
-      dot.setAttribute('class', point.role === 'sender' ? 'load-tx-dot' : 'load-rx-dot');
-      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-      title.textContent = `${number(point.elapsed / 1000, 2)} s · ${t(point.role === 'sender' ? 'TX queued' : 'RX received')}: ${point.fps.toLocaleString(locale())} Frames/s`;
-      dot.append(title); return dot;
+      dot.setAttribute('fill', series.color); dot.dataset.series = series.id;
+
+      const unit = series.unit ? t(series.unit) : series.gauge ? t('frames pending') : t('events / {span} s window', { span: number((point.span ?? 1000) / 1000, 2) });
+      dot.setAttribute('aria-label', `${number(point.elapsed / 1000, 2)} s · ${t(series.label)}: ${point.value.toLocaleString(locale())} ${unit}`);
+      return dot;
     }));
   }
+  if (hoverPosition) showChartTooltip(hoverPosition);
 }
+
+for (const input of document.querySelectorAll('[data-chart-series]')) input.addEventListener('change', renderLoad);
 
 for (const id of ['load-rate', 'load-slider']) $('#' + id).addEventListener('input', event => {
   $(id === 'load-rate' ? '#load-slider' : '#load-rate').value = event.target.value;
@@ -241,10 +315,10 @@ for (const name of ['sender', 'receiver']) {
 
 function renderCompatibility() {
   if (!supported) {
-    $('#compatibility').hidden = false;
-    $('#compatibility').textContent = t(!window.isSecureContext
-      ? 'Open http://localhost:8765/debug/. USB access requires localhost or HTTPS.'
-      : 'This browser does not support Web Serial. Open the address in Microsoft Edge or Google Chrome on your Mac.');
+  $('#compatibility').hidden = false;
+  $('#compatibility').textContent = t(!window.isSecureContext
+    ? 'Open http://localhost:8765/. USB access requires localhost or HTTPS.'
+    : 'This browser does not support Web Serial. Open the address in Microsoft Edge or Google Chrome on your Mac.');
   }
 }
 renderCompatibility();
@@ -300,6 +374,7 @@ $('#pause').addEventListener('click', () => {
   paused = !paused;
   renderPause();
   $('#pause').setAttribute('aria-pressed', String(paused));
+
   dirty = true;
 });
 $('#clear').addEventListener('click', () => { logs = []; dirty = true; });

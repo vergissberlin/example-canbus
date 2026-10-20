@@ -36,7 +36,7 @@ function bootstrap(options) {
           const command = new TextDecoder().decode(value).trim();
           window.testCommands.push({ role, command });
           const parts = command.split(' '), operation = parts[1].toLowerCase();
-          if (operation === 'hello') this.send(`LAB HELLO role=${role} version=1 bitrate=500000 max_rate=20000 max_seconds=60\n`);
+          if (operation === 'hello') this.send(`LAB HELLO role=${role} version=1 bitrate=500000 ${options.autoDemo && role === 'sender' ? 'demo=1 ' : ''}max_rate=20000 max_seconds=60\n`);
           else {
             if (['arm', 'start'].includes(operation)) this.test = Number(parts[2]);
             this.send(`LAB ACK role=${role} command=${operation} test=${this.test}\n`);
@@ -54,10 +54,10 @@ function bootstrap(options) {
 }
 
 async function fixture(options = {}) {
-  const html = await (await fetch('./index.html?v=timeline1', {cache:'no-store'})).text();
+  const html = await (await fetch('../index.html?v=diagnostics1', {cache:'no-store'})).text();
   const iframe = document.createElement('iframe');
   iframe.title = 'Simulated CAN/LAB console'; iframe.style.width = '1160px';
-  const base = new URL('./', location.href).href;
+  const base = new URL('../', location.href).href;
   iframe.srcdoc = html.replace('<head>', `<head><base href="${base}"><script>(${bootstrap.toString()})(${JSON.stringify(options)})</script>`);
   document.querySelector('#fixtures').replaceChildren(iframe);
   await until(() => iframe.contentDocument?.querySelector('#communication-diagram') && iframe.contentWindow.testPorts);
@@ -161,6 +161,20 @@ async function run() {
     await until(() => missing.doc.querySelector('#rx-count').textContent === '1');
     missing.click('[data-device="receiver"] .disconnect');
   });
+  await check('Sender connection starts only the one-frame-per-second demo, once per connection', async () => {
+    const demo = await fixture({loadTest:true, autoDemo:true});
+    demo.click('[data-device="sender"] .connect');
+    await until(() => demo.iframe.contentWindow.testCommands.some(item => item.command === 'LAB DEMO'));
+    demo.ports[0].send('LAB HELLO role=sender version=1 bitrate=500000 demo=1\n');
+    demo.click('[data-device="receiver"] .connect');
+    await until(() => demo.doc.querySelectorAll('.device.connected').length === 2);
+    await wait(100);
+    const commands = demo.iframe.contentWindow.testCommands;
+    assert(commands.filter(item => item.command === 'LAB DEMO').length === 1, 'Demo restarted by duplicate HELLO or receiver');
+    assert(!commands.some(item => item.command.startsWith('LAB START') || item.command.startsWith('LAB ARM')), 'Auto demo started a load test');
+    demo.click('[data-device="sender"] .disconnect');
+    demo.click('[data-device="receiver"] .disconnect');
+  });
   const load = await fixture({ loadTest: true });
   const senderStats = id => `LAB STATS role=sender test=${id} running=1 target=1000 queued=100 queued_fps=100 rejected=10 skipped=0 cancelled=0 pending=10 failed=0 errors=0 tec=0 rec=0 state=1 elapsed_ms=1000\n`;
   const receiverStats = (id, count) => `LAB STATS role=receiver test=${id} rx=${count} rx_fps=${count} counter=${count - 1} gaps=0 duplicates=0 missed=0 overrun=0 errors=0 tec=0 rec=0 state=1 elapsed_ms=1000\n`;
@@ -188,12 +202,14 @@ async function run() {
     await until(() => load.doc.querySelector('#rx-count').textContent === '90');
     assert(load.doc.querySelector('#rx-count').textContent === '90', `Duplicate summation: ${load.doc.querySelector('#rx-count').textContent}`);
     assert(load.doc.querySelector('#load-rejected').textContent === '10', 'Queue rejections missing');
+    assert(load.doc.querySelector('#load-cancelled').textContent === '0', 'Cancelled counter missing');
+    assert(load.doc.querySelector('#load-failed').textContent === '0', 'Failed counter missing');
     assert(load.doc.querySelector('#load-gaps').textContent === '0', 'Queue rejections counted as RX loss');
   });
   await check('Time chart shows separate TX/RX points even with a paused console', async () => {
     assert(load.doc.querySelector('#load-tx-line').getAttribute('d').startsWith('M'), 'TX curve missing');
     assert(load.doc.querySelector('#load-rx-line').getAttribute('d').startsWith('M'), 'RX curve missing');
-    assert(load.doc.querySelectorAll('#load-chart-points circle').length === 2, 'Duplicate or missing points');
+    assert(load.doc.querySelectorAll('#load-chart-points circle[data-series=sender], #load-chart-points circle[data-series=receiver]').length === 2, 'Duplicate or missing points');
     assert(load.doc.querySelector('[data-chart-second="60"]').textContent === '60 s', 'Seconds axis missing');
   });
   await check('Language changes during a running test preserve ports, measurements, inputs and paused logs', async () => {
@@ -210,7 +226,7 @@ async function run() {
     assert(load.doc.querySelector('#pause').textContent === 'Anzeige fortsetzen', 'Paused label not translated');
     assert(load.doc.querySelector('[data-node-status="receiver"]').textContent === 'RX erkannt', 'SVG status not translated');
     assert(load.doc.querySelector('svg title').textContent.includes('CAN-Kommunikation'), 'SVG accessible title not translated');
-    assert(load.doc.querySelector('#load-chart-points title').textContent.includes('1,00 s'), 'Existing tooltip not translated');
+    assert(load.doc.querySelector('#load-chart-points circle').getAttribute('aria-label').includes('1,00 s'), 'Existing tooltip not translated');
     assert(load.doc.querySelector('#load-test').classList.contains('is-running'), 'Test was stopped');
     assert(load.doc.querySelectorAll('.device.connected').length === 2, 'USB lost');
     assert(load.doc.querySelector('#load-rate').value === '1000', 'Input reset');
@@ -227,6 +243,41 @@ async function run() {
     assert(load.doc.querySelector('#load-target').textContent === '1,000', 'English numbers missing');
     switchTo('auto');
     assert(load.doc.documentElement.lang === 'en', 'Automatic choice not restored');
+  });
+  await check('Hover immediately shows series name, value, unit and measurement time', async () => {
+    const point = load.doc.querySelector('#load-chart-points circle[data-series="sender"]');
+    const svg = load.doc.querySelector('.load-chart');
+    const pos = new DOMPoint(Number(point.getAttribute('cx')),Number(point.getAttribute('cy'))).matrixTransform(svg.getScreenCTM());
+    svg.dispatchEvent(new PointerEvent('pointermove',{clientX:pos.x,clientY:pos.y}));
+    const tooltip = load.doc.querySelector('#load-chart-tooltip');
+    assert(!tooltip.hidden, 'Tooltip not shown');
+    assert(tooltip.textContent.includes('TX queued') && tooltip.textContent.includes('100 frames/s'), 'Name or rate missing');
+    assert(tooltip.textContent.includes('1.00 s'), 'Measurement time missing');
+    svg.dispatchEvent(new PointerEvent('pointerleave'));
+    assert(tooltip.hidden, 'Tooltip remains visible after leaving chart');
+  });
+  await check('Overlapping diagnostic points expose all matching series and Escape dismisses the tooltip', async () => {
+    const point = load.doc.querySelector('#load-chart-points circle[data-series="gaps"]');
+    const svg = load.doc.querySelector('.load-chart');
+    const pos = new DOMPoint(Number(point.getAttribute('cx')),Number(point.getAttribute('cy'))).matrixTransform(svg.getScreenCTM());
+    svg.dispatchEvent(new PointerEvent('pointerdown',{clientX:pos.x,clientY:pos.y}));
+    const tooltip = load.doc.querySelector('#load-chart-tooltip');
+    assert(!tooltip.hidden && tooltip.textContent.includes('Counter gaps') && tooltip.textContent.includes('HW overrun'), 'Overlapping values missing');
+    assert(tooltip.textContent.includes('0 events / 1.00 s'), 'Diagnostic units missing');
+    load.doc.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
+    assert(tooltip.hidden, 'Escape did not hide tooltip');
+  });
+  await check('Diagnostic chart shows counter increments and toggles series without losing samples', async () => {
+    const queued = senderStats(load.ports[0].test).replace('elapsed_ms=1000','elapsed_ms=2000').replace('rejected=10','rejected=13').replace('skipped=0','skipped=2');
+    load.ports[0].send(queued);
+    await until(() => load.doc.querySelectorAll('circle[data-series=skipped]').length === 2);
+    assert([...load.doc.querySelectorAll('circle[data-series=skipped]')].some(dot => dot.getAttribute('aria-label').includes('2 events')), 'Skip increment missing');
+    const toggle=load.doc.querySelector('[data-chart-series][value=skipped]');
+    toggle.click();
+    assert(load.doc.querySelector('[data-chart-path=skipped]').getAttribute('d') === '', 'Hidden series remains drawn');
+    toggle.click();
+    assert(load.doc.querySelectorAll('circle[data-series=skipped]').length === 2, 'Toggling discarded history');
+    assert(load.doc.querySelectorAll('[data-chart-series]').length === 10, 'Table metrics missing');
   });
   await check('Slider moves in steps of five; preset 1 remains available', async () => {
     const slider=load.doc.querySelector('#load-slider');
@@ -247,6 +298,8 @@ async function run() {
   await check('Load test: no horizontal page overflow at 390px', async () => {
     load.iframe.style.width = '390px'; await wait(50);
     assert(load.doc.documentElement.scrollWidth <= load.doc.documentElement.clientWidth + 1, 'Load test overflows');
+    const chart=load.doc.querySelector('.load-chart-scroll');
+    assert(chart.scrollWidth > chart.clientWidth, 'Chart must scroll to keep labels readable');
     load.iframe.style.width = '1160px';
   });
   await check('Load test: disconnecting receiver requests sender stop', async () => {
@@ -294,8 +347,48 @@ async function run() {
     assert(data.includes('[system] Ready. Sender and receiver can be connected simultaneously.'), 'Original application log changed in export');
     assert(!data.includes('Bereit. Sender und Empfänger'), 'Localized UI text leaked into export');
   });
+  await check('Chart shows bus-off recovery and confirmed one-frame-per-second fallback', async () => {
+    const load=await fixture({loadTest:true});
+    load.click('[data-device="sender"] .connect'); load.click('[data-device="receiver"] .connect');
+    await until(() => !load.doc.querySelector('#load-start').disabled);
+    load.click('#load-start');
+    await until(() => load.doc.querySelector('#load-test').classList.contains('is-running'));
+    const id=load.ports[0].test;
+    const notice=load.doc.querySelector('#can-recovery-notice');
+    load.ports[0].send(`LAB END role=sender test=${id} reason=bus_off\n`);
+    await until(() => !notice.hidden && notice.dataset.state === 'recovering');
+    assert(notice.textContent.includes('Waiting for recovery'), 'Recovery warning missing');
+    load.ports[0].send(`LAB RECOVERED role=sender test=${id} demo=1\n`);
+    await until(() => notice.dataset.state === 'recovered');
+    assert(notice.textContent.includes('1 frame/s') && notice.textContent.includes('remains stopped'), 'Confirmed fallback missing');
+    assert(!load.doc.querySelector('#load-test').classList.contains('is-running'), 'Interrupted test resumed');
+    load.click('#load-start');
+    await until(() => load.doc.querySelector('#load-test').classList.contains('is-running'));
+    assert(notice.hidden, 'Old notice remains on a new test');
+  });
   // Leave a clean simulated view for visual inspection, never the real USB page.
-  await fixture();
+  const preview = await fixture({loadTest:true});
+  preview.click('[data-device="sender"] .connect'); preview.click('[data-device="receiver"] .connect');
+  await until(() => !preview.doc.querySelector('#load-start').disabled);
+  preview.click('#load-start');
+  await until(() => preview.doc.querySelector('#load-test').classList.contains('is-running'));
+  const id=preview.ports[0].test;
+  for (let second=1;second<=10;second++) {
+    preview.ports[0].send(senderStats(id).replace('elapsed_ms=1000',`elapsed_ms=${second*1000}`).replace('queued_fps=100',`queued_fps=${4000+second*10}`).replace('rejected=10',`rejected=${second*80}`).replace('skipped=0',`skipped=${second*3}`).replace('errors=0',`errors=${second>7?1:0}`));
+    preview.ports[1].send(receiverStats(id,second*3990).replace(`rx_fps=${second*3990}`,`rx_fps=${3980+second*10}`).replace('elapsed_ms=1000',`elapsed_ms=${second*1000}`).replace('gaps=0',`gaps=${second>5?2:0}`));
+  }
+  await until(() => preview.doc.querySelectorAll('circle[data-series=sender]').length === 10);
+  preview.click('#load-stop');
+  preview.doc.querySelector('#load-title').textContent='SIMULATION · diagnostic chart';
+  if (new URL(location.href).searchParams.has('recovery')) {
+    preview.ports[0].send(`LAB END role=sender test=${id} reason=bus_off\n`);
+    preview.ports[0].send(`LAB RECOVERED role=sender test=${id} demo=1\n`);
+    await until(() => preview.doc.querySelector('#can-recovery-notice').dataset.state === 'recovered');
+  }
+  if (new URL(location.href).searchParams.has('preview')) {
+    preview.doc.querySelector('#load-test').scrollIntoView();
+    preview.iframe.scrollIntoView();
+  }
   document.querySelector('#result').textContent = `${passed} passed · ${failed} failed · Simulation, not a hardware test`;
   runButton.disabled = false;
 }

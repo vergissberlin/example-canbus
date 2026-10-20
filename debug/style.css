@@ -36,3 +36,19 @@
 
 .language-select{display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap;margin-left:auto}.language-select select{font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:8px;max-width:160px}
 @media(max-width:800px){header{height:auto;min-height:75px;flex-wrap:wrap;gap:12px;padding-top:12px;padding-bottom:12px}.language-select{font-size:11px}.language-select>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}.language-select select{max-width:125px}.log-line{grid-template-columns:82px 72px 1fr}}
+
+.load-chart-legend{border:0;padding:0;margin:16px 0 8px;display:flex;flex-wrap:wrap;gap:8px 14px;min-width:0}.load-chart-legend legend{font:10px var(--mono);color:var(--muted);margin-bottom:10px}.load-chart-legend label{display:flex;align-items:center;gap:5px;font:10px var(--mono);color:var(--series-color);cursor:pointer}.load-chart-legend input{margin:0;accent-color:var(--series-color);width:14px;height:14px}.load-series-line{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.load-chart-help{font-size:10px;line-height:1.6;color:var(--muted);margin:6px 0}.load-chart{min-height:230px}
+
+.load-chart-scroll{overflow-x:auto;max-width:100%}.load-chart-scroll .load-chart{min-width:640px}
+
+.load-chart{cursor:crosshair}
+.load-chart-tooltip{position:fixed;z-index:20;max-width:calc(100vw - 16px);padding:11px 14px;border:1px solid #ffffff26;border-radius:8px;background:#15271f;color:#f3f2e9;box-shadow:0 5px 18px #15271f26;pointer-events:none;font:11px/1.6 var(--mono);font-variant-numeric:tabular-nums}
+.load-chart-tooltip[hidden]{display:none}
+.chart-tooltip-time{color:#b7c4b8;font-size:10px;margin-bottom:5px}
+.chart-tooltip-row{display:flex;align-items:baseline;justify-content:space-between;gap:20px}
+.chart-tooltip-row span:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--series-color);margin-right:7px}
+.chart-tooltip-row strong{font-weight:600;text-align:right}
+
+.can-recovery-notice{margin:12px 0;padding:12px 14px;border:1px solid #d7b671;border-left:3px solid #b57716;border-radius:6px;background:#fff0d0;color:#574215;font-size:12px;line-height:1.6}
+.can-recovery-notice[hidden]{display:none}
+.can-recovery-notice[data-state="recovered"]{background:#e4e8d9;border-color:#a8b795;border-left-color:#547421;color:#263e25}

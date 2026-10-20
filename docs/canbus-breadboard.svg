@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1240" viewBox="0 0 1600 1240" role="img" aria-labelledby="title description">
-<title id="title">CAN bus on two breadboards: sender and receiver</title><desc id="description">Two ESP32-C3 SuperMini boards, each with a WCMCU-230. Both ESPs are powered separately via USB. Connect 3V3 to 3V3, GND to GND, GPIO5 to CTX and GPIO4 to CRX. CANH, CANL and GND connect the nodes. Each bus end has a 120-ohm termination. Components and pin positions are schematic.</desc>
+<title id="title">CAN bus on two breadboards: sender and receiver</title><desc id="description">Two ESP32-C3 SuperMini boards, each with a WCMCU-230. Both ESPs are powered separately via USB. Connect 3V3 to 3V3, GND to GND, GPIO5 to CTX and GPIO4 to CRX. CANH, CANL and GND connect the nodes. The WCMCU-230 modules provide built-in bus termination; no external resistors are needed. Components and pin positions are schematic.</desc>
 <style>text{font-family:Arial,Helvetica,sans-serif}.mono{font-family:monospace}</style>
 <rect x="0" y="0" width="1600" height="1240" rx="0" fill="#f3f6fa" stroke="none"/>
 <text x="60" y="65" font-size="38" fill="#25364a" font-weight="700" text-anchor="start">Two boards. One CAN bus.</text>
@@ -791,9 +791,6 @@
 <circle cx="1217" cy="423" r="6" fill="#d5e0db"/><path d="M 1213 423 h 8" stroke="#566a64" stroke-width="2"/>
 <path d="M 1233 423 H 1320" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M 1233 423 H 1320" fill="none" stroke="#3a4858" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="1320" cy="423" r="6" fill="#3a4858" stroke="#fff" stroke-width="2"/>
-<path d="M 1400 343 H 1440 V 354 M 1440 373 V 383 H 1480" stroke="#596676" stroke-width="2" fill="none"/>
-<rect x="1432" y="354" width="16" height="19" rx="2" fill="#e3c59b" stroke="#997e5b"/>
-<text x="1510" y="368" font-size="16" fill="#25364a" font-weight="700" text-anchor="start">120 Ω</text>
 <rect x="275" y="503" width="680" height="29" rx="7" fill="#fdfdfb" stroke="none"/>
 <text x="290" y="523" font-size="17" fill="#546778" font-weight="400" text-anchor="start">USB powers ESP → ESP powers CAN module at 3.3 V</text>
 <text x="65" y="639" font-size="22" fill="#25364a" font-weight="700" text-anchor="start">02  RECEIVER</text>
@@ -1578,9 +1575,6 @@
 <circle cx="1217" cy="853" r="6" fill="#d5e0db"/><path d="M 1213 853 h 8" stroke="#566a64" stroke-width="2"/>
 <path d="M 1233 853 H 1320" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M 1233 853 H 1320" fill="none" stroke="#3a4858" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="1320" cy="853" r="6" fill="#3a4858" stroke="#fff" stroke-width="2"/>
-<path d="M 1400 773 H 1440 V 784 M 1440 803 V 813 H 1480" stroke="#596676" stroke-width="2" fill="none"/>
-<rect x="1432" y="784" width="16" height="19" rx="2" fill="#e3c59b" stroke="#997e5b"/>
-<text x="1510" y="798" font-size="16" fill="#25364a" font-weight="700" text-anchor="start">120 Ω</text>
 <rect x="275" y="933" width="680" height="29" rx="7" fill="#fdfdfb" stroke="none"/>
 <text x="290" y="953" font-size="17" fill="#546778" font-weight="400" text-anchor="start">USB powers ESP → ESP powers CAN module at 3.3 V</text>
 <rect x="1287" y="578" width="66" height="28" rx="6" fill="#f3f6fa" stroke="none"/>
@@ -1596,8 +1590,8 @@
 <text x="82" y="1152" font-size="17" fill="#25364a" font-weight="400" text-anchor="start">Power both ESPs separately via USB; no 5V/3V3 jumper.</text>
 <rect x="800" y="1025" width="740" height="155" rx="14" fill="#fff5df" stroke="#ead7a5"/>
 <text x="822" y="1058" font-size="21" fill="#25364a" font-weight="700" text-anchor="start">Termination &amp; checks</text>
-<text x="822" y="1090" font-size="18" fill="#25364a" font-weight="400" text-anchor="start">Exactly 120 Ω between CANH and CANL at each bus end.</text>
-<text x="822" y="1122" font-size="17" fill="#25364a" font-weight="400" text-anchor="start">Often fitted on the module → do not add another.</text>
+<text x="822" y="1090" font-size="18" fill="#25364a" font-weight="400" text-anchor="start">WCMCU-230 modules have built-in bus termination.</text>
+<text x="822" y="1122" font-size="17" fill="#25364a" font-weight="400" text-anchor="start">No additional external resistors are needed.</text>
 <text x="822" y="1152" font-size="17" fill="#25364a" font-weight="400" text-anchor="start">With power off, measure CANH to CANL: total ≈ 60 Ω.</text>
 <text x="60" y="1214" font-size="15" fill="#627183" font-weight="400" text-anchor="start">Source: repository README / GPIO configuration · SN65HVD230: TI datasheet · Power CAN modules at 3.3 V only.</text>
 </svg>

@@ -8,7 +8,7 @@ The ESP32-C3 includes the CAN controller (TWAI); the WCMCU-230 only converts the
 ## Hardware
 
 - 2x ESP32-C3 SuperMini (solder the pin headers)
-- 2x WCMCU-230 (3.3 V, usually with 120-ohm termination already fitted)
+- 2x WCMCU-230 (3.3 V, built-in bus termination)
 - Breadboard, jumper wires
 
 ## Wiring (identical on both sides)
@@ -40,8 +40,8 @@ normal operation.
 The drawing shows both ESPs with separate USB power supplies. Components and
 pin positions are schematic: follow the labels on the actual board when wiring.
 Each CAN transceiver is powered at 3.3 V by its own ESP.
-Each bus end requires 120 ohms between CANH and CANL; count any termination
-resistors already fitted to the modules and do not add duplicates.
+The WCMCU-230 modules used here already include bus termination.
+No additional external resistors are needed.
 
 ```
  C3 #1 -- WCMCU #1                 WCMCU #2 -- C3 #2
@@ -55,8 +55,8 @@ resistors already fitted to the modules and do not add duplicates.
 Two ESP32-C3 SuperMini boards, each with a WCMCU-230, were tested with separate
 USB power supplies and no 5V jumper. For each module: ESP-3V3 to 3V3,
 ESP-GND to GND, GPIO 5 to CTX and GPIO 4 to CRX. Between the modules,
-CANH connects to CANH, CANL to CANL and GND to GND. Both existing
-120-ohm module terminations remain fitted; no additional terminations.
+CANH connects to CANH, CANL to CANL and GND to GND. The built-in module
+terminations remain fitted; no additional external resistors are needed.
 
 | Check | Result |
 |---|---|
@@ -86,9 +86,9 @@ the cause of this behavior was not conclusively determined.
 
 ## Browser debugging (without Arduino IDE)
 
-[Open CAN/LAB online](https://vergissberlin.github.io/example-canbus/debug/)
+[Open CAN/LAB online](https://canlab.andrelademann.de/)
 
-The local [CAN/LAB console](debug/index.html) reads USB output from sketches
+The local [CAN/LAB console](index.html) reads USB output from sketches
 already flashed onto the boards. It can open both boards simultaneously,
 show RX counters and counter gaps, and filter, pause and export logs as text.
 Reading existing logs requires no firmware changes;
@@ -98,7 +98,7 @@ The console supports English firmware logs only. Flash the current sketches
 onto both boards before using it.
 
 1. Run `./debug/serve.command` from the repository (on macOS, double-clicking also works).
-2. Open **http://localhost:8765/debug/** in **Microsoft Edge or Google Chrome**
+2. Open **http://localhost:8765/** in **Microsoft Edge or Google Chrome**
    on your Mac. The browser must support Web Serial.
 3. Connect both ESPs via USB; with separate USB power supplies, do not fit a 5V
    jumper between the boards. Close other serial monitors.
@@ -118,7 +118,7 @@ Stop the server with `Ctrl+C`.
 
 ### Install as a PWA
 
-CAN/LAB can be installed from the [GitHub Page](https://vergissberlin.github.io/example-canbus/debug/).
+CAN/LAB can be installed from the [GitHub Page](https://canlab.andrelademann.de/).
 In Chrome or Edge on a supported desktop or Android device, use the browser's
 **Install app** action. On iPhone or iPad, open the page in Safari and choose
 **Share → Add to Home Screen**. The app opens in its own window with a matching
@@ -163,8 +163,10 @@ The **“How much gets through?”** panel controls the sender via Web Serial:
    end time. **Stop** ends queueing. The firmware stops automatically when time
    expires, even without an open browser. A frame already being transmitted may
    still complete.
-6. After the test, the sender remains stopped. RESET on the sender restarts
-   the normal demo at one frame per second.
+6. After the test, the sender remains stopped. Reconnecting the sender
+   automatically starts the normal demo at one frame per second. This requires
+   the sender firmware with `demo=1` support; the receiver may connect later.
+   RESET on the sender also restarts the demo.
 
 Load frames use standard ID `0x123` and **eight data bytes**: a four-byte counter
 and a four-byte test ID, both little endian. The normal demo still uses four
@@ -188,6 +190,12 @@ and may exceed bus capacity.
   TWAI error counters relative to the start of this test. They do not measure
   electrical bus utilization or automatically give a loss rate.
 
+The sender SuperMini LED (GPIO 8, active low) lights for 20 ms after an
+ACK-confirmed CAN transmission. Rapid transmissions extend the pulse, so at
+high rates it appears continuously lit. LED handling never delays CAN processing.
+The blue sender wire in the browser instead indicates queueing from USB logs,
+aggregated per status report during load tests; it does not confirm an ACK.
+
 The time chart shows the last 60 seconds on an axis in seconds: a blue dashed
 line for frames/s queued for transmission and a green line for frames/s actually
 received. TX does not confirm successful transmission. Points show the roughly
@@ -199,6 +207,16 @@ and number field. Previous measurements stay visible after the test ends.
 Starting a new test resets them. After more than three seconds without a new
 report, the display is marked stale. Pausing or filtering the console affects
 neither measurements nor control commands.
+
+The same chart also includes all diagnostic counters from the table: TX queue
+rejections, scheduler skips, counter gaps, pending TX frames, RX queue full,
+hardware overruns, and sender/receiver bus errors. The upper plot shows queued
+and received frames/s. The lower plot uses a separate scale and shows counter
+increases per firmware reporting window (not cumulative totals); TX pending is
+the queue size at the end of that window. Hover text includes the window length.
+Checkboxes toggle each of the ten series independently without deleting history;
+scales use only visible series, allowing small error counts to be inspected.
+The table continues to show cumulative totals. No new firmware is required.
 
 The receiver runs without the previous 50-ms pause per frame. Load frames are
 not logged individually over serial; both boards report totals roughly once per
@@ -226,12 +244,15 @@ Use only in this isolated breadboard experiment.
 
 **Validation status:** JavaScript protocol and state tests, native C++ tests of
 the command parser and pacing, and both PlatformIO builds have been checked
-locally. All 35 JavaScript tests and 18 browser integration tests pass; the native
+locally. All 38 JavaScript tests and 19 browser integration tests pass; the native
 C++ test and both PlatformIO builds also succeed. The browser test page explicitly
-uses simulated USB ports. Hardware acceptance testing of the adjustable rate
-for this new load-test firmware is still pending, because no ESPs were connected
-via USB at completion. The successful hardware tests described above apply
-to the previous demo version.
+uses simulated USB ports. On 20 October 2026 both ESPs were flashed with the
+load-test firmware. A real 100 frames/s test lasting three seconds queued 299
+frames and received all 299, without counter gaps, rejected queue entries or
+bus errors; the sender stopped automatically. After adding the sender LED,
+five consecutive demo frames were confirmed by CAN ACKs and matching receiver
+logs, and the bounded load test passed again. The visible LED itself was not
+verified by camera. Maximum rate and other load levels remain unverified.
 
 ### Live signal path
 
@@ -323,7 +344,10 @@ pio run -c receiver.ini -e receiver -t upload
   This instantaneous level is not a voltage measurement and does not prove the
   line is continuously quiet. `TX_ACK=1` indicates a TX_SUCCESS alert from the
   controller; only the receiver application's RX log confirms reception there.
-- After Bus-Off, the sender starts recovery and then restarts the driver.
+- After Bus-Off, the sender stops the load test and recovers the CAN driver.
+  Once recovery succeeds, the 1-frame/s demo resumes automatically.
+  The interrupted load test remains stopped; start a new test explicitly.
+  An explicit STOP during recovery cancels automatic demo resumption.
 - If the sender reports Bus-Off and the receiver sees no frames, check for about
   3.3 V directly between `3V3` and `GND` on each powered CAN module.
 - With power disconnected, measure between CANH and CANL: about **60 ohms**
@@ -331,3 +355,6 @@ pio run -c receiver.ini -e receiver -t upload
 - `TX … ERROR (peer/wiring?)`: no other node, CANH/CANL swapped or mismatched bitrate.
 - Both sketches use a bitrate of 500 kbit/s.
 - GPIO 2, 8 and 9 are strapping pins; do not use them for CAN.
+
+Sender telemetry keeps its observation clock running after a test ends, so the
+chart includes measured zero-rate windows instead of ending at the last load sample.

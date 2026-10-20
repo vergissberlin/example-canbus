@@ -7,21 +7,26 @@
 constexpr gpio_num_t CAN_TX_PIN = GPIO_NUM_5;
 constexpr gpio_num_t CAN_RX_PIN = GPIO_NUM_4;
 constexpr uint32_t CAN_ID = 0x123;
+constexpr int LED_PIN = 8; // SuperMini onboard LED: active low.
+uint32_t ledUntil = 0;
+bool ledActive = false;
 canlab::Pacer pacer;
+canlab::RecoveryDemo recoveryDemo;
 bool running = false, demo = true;
-uint32_t testId = 0, targetRate = 1, started = 0, ended = 0, durationMs = 0;
+uint32_t testId = 0, targetRate = 1, started = 0, durationMs = 0;
 uint32_t counter = 0, queued = 0, rejected = 0, skipped = 0, cancelled = 0;
 uint32_t lastReport = 0, reportQueued = 0, lastDemo = 0;
 uint32_t failedBase = 0, errorsBase = 0;
 char input[80]; unsigned inputLength = 0; bool overflow = false;
 
-void hello() { Serial.println("LAB HELLO role=sender version=1 bitrate=500000 max_rate=20000 max_seconds=60"); }
+void hello() { Serial.println("LAB HELLO role=sender version=1 bitrate=500000 demo=1 max_rate=20000 max_seconds=60"); }
 
 void stats() {
   twai_status_info_t s = {};
   if (twai_get_status_info(&s) != ESP_OK) return;
   uint32_t now = millis(), span = now - lastReport;
-  uint32_t elapsed = testId ? (running ? now : ended) - started : 0;
+  // Keep observation time advancing after STOP so measured zero-rate windows reach the chart.
+  uint32_t elapsed = testId ? now - started : 0;
   uint32_t fps = span ? (uint32_t)((uint64_t)(queued - reportQueued) * 1000 / span) : 0;
   Serial.printf("LAB STATS role=sender test=%lu running=%d target=%lu queued=%lu queued_fps=%lu rejected=%lu skipped=%lu cancelled=%lu pending=%lu failed=%lu errors=%lu tec=%lu rec=%lu state=%d elapsed_ms=%lu\n",
     (unsigned long)testId, running, (unsigned long)targetRate, (unsigned long)queued,
@@ -33,9 +38,10 @@ void stats() {
 }
 
 void stopLoad(const char* reason) {
+  if (strcmp(reason, "bus_off")) recoveryDemo.cancel();
   demo = false;
   if (running) {
-    running = false; ended = millis();
+    running = false;
     twai_status_info_t s = {};
     if (twai_get_status_info(&s) == ESP_OK) {
       // Queue clearing discards waiting frames; an in-flight frame may still finish.
@@ -56,13 +62,24 @@ void command(const char* line) {
       stopLoad("stop");
       Serial.printf("LAB ACK role=sender command=stop test=%lu\n", (unsigned long)testId);
       break;
+    case canlab::Kind::Demo: {
+      // Reconnecting may resume the low-rate demo, but must never replace a load test.
+      twai_status_info_t s = {};
+      if (running || twai_get_status_info(&s) != ESP_OK || s.state != TWAI_STATE_RUNNING) {
+        Serial.println("LAB ERROR role=sender reason=not_ready"); break;
+      }
+      twai_clear_transmit_queue();
+      demo = true; testId = 0; targetRate = 1; lastDemo = millis();
+      Serial.println("LAB ACK role=sender command=demo test=0");
+      stats(); break;
+    }
     case canlab::Kind::Start: {
       twai_status_info_t s = {};
       if (running || twai_get_status_info(&s) != ESP_OK || s.state != TWAI_STATE_RUNNING || s.msgs_to_tx) {
         Serial.println("LAB ERROR role=sender reason=not_ready"); break;
       }
       demo = false; running = true; testId = c.test; targetRate = c.rate;
-      durationMs = c.seconds * 1000; started = lastReport = millis(); ended = started;
+      durationMs = c.seconds * 1000; started = lastReport = millis();
       counter = queued = rejected = skipped = cancelled = reportQueued = 0;
       failedBase = s.tx_failed_count; errorsBase = s.bus_error_count;
       pacer.reset(micros(), targetRate);
@@ -93,7 +110,7 @@ void serialCommands() {
 }
 
 void setup() {
-  Serial.begin(115200); delay(1500);
+  Serial.begin(115200); pinMode(LED_PIN, OUTPUT); digitalWrite(LED_PIN, HIGH); delay(1500);
   twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT(CAN_TX_PIN, CAN_RX_PIN, TWAI_MODE_NORMAL);
   g.tx_queue_len = 32;
   g.alerts_enabled = TWAI_ALERT_TX_SUCCESS | TWAI_ALERT_BUS_ERROR | TWAI_ALERT_BUS_OFF;
@@ -111,10 +128,17 @@ void loop() {
   twai_status_info_t s = {};
   if (twai_get_status_info(&s) != ESP_OK) { stopLoad("driver_error"); delay(1); return; }
   if (s.state == TWAI_STATE_BUS_OFF) {
+    recoveryDemo.interrupted(running || demo);
     stopLoad("bus_off");
     Serial.println("Bus-Off -> Recovery"); twai_initiate_recovery();
   } else if (s.state == TWAI_STATE_STOPPED) {
-    twai_start(); // Recovery never automatically resumes a load test.
+    const bool restarted = twai_start() == ESP_OK;
+    if (recoveryDemo.recovered(restarted)) {
+      // Keep the ended test's counters and clock; demo frames use the normal four-byte payload.
+      demo = true; lastDemo = millis();
+      Serial.printf("LAB RECOVERED role=sender test=%lu demo=1\n", (unsigned long)testId);
+      Serial.println("CAN recovered -> Demo at 1 frame/s; load test remains stopped");
+    }
   } else if (s.state == TWAI_STATE_RUNNING) {
     if (running && (uint32_t)(now - started) >= durationMs) stopLoad("timeout");
     if (running) {
@@ -135,8 +159,18 @@ void loop() {
     }
   }
   uint32_t alerts = 0;
-  if (twai_read_alerts(&alerts, 0) == ESP_OK && !running && demo && alerts) {
-    Serial.printf("DIAG TX_ACK=%d BUS_ERROR=%d\n", !!(alerts & TWAI_ALERT_TX_SUCCESS), !!(alerts & TWAI_ALERT_BUS_ERROR));
+  if (twai_read_alerts(&alerts, 0) == ESP_OK) {
+    // ACK-confirmed transmissions only. Coalesce rapid successes; never delay CAN for an LED.
+    if ((alerts & TWAI_ALERT_TX_SUCCESS) && !(alerts & TWAI_ALERT_BUS_OFF)) {
+      digitalWrite(LED_PIN, LOW); ledUntil = millis() + 20; ledActive = true;
+    }
+    if (alerts & TWAI_ALERT_BUS_OFF) { digitalWrite(LED_PIN, HIGH); ledActive = false; }
+    if (!running && demo && alerts) {
+      Serial.printf("DIAG TX_ACK=%d BUS_ERROR=%d\n", !!(alerts & TWAI_ALERT_TX_SUCCESS), !!(alerts & TWAI_ALERT_BUS_ERROR));
+    }
+  }
+  if (ledActive && (int32_t)(millis() - ledUntil) >= 0) {
+    digitalWrite(LED_PIN, HIGH); ledActive = false;
   }
   if ((uint32_t)(millis() - lastReport) >= 1000) stats();
   delay(1);

@@ -5,7 +5,7 @@
 namespace canlab {
 constexpr uint32_t MAX_RATE = 20000;
 constexpr uint32_t MAX_SECONDS = 60;
-enum class Kind { Unknown, Invalid, Hello, Status, Stop, Arm, Start, Rate };
+enum class Kind { Unknown, Invalid, Hello, Status, Stop, Demo, Arm, Start, Rate };
 struct Command {
   Kind kind; uint32_t test = 0, rate = 0, seconds = 0;
   explicit Command(Kind value) : kind(value) {}
@@ -40,12 +40,26 @@ inline Command parse(const char* text) {
     if (!strcmp(tokens[1], "HELLO")) cmd.kind = Kind::Hello;
     if (!strcmp(tokens[1], "STATUS")) cmd.kind = Kind::Status;
     if (!strcmp(tokens[1], "STOP")) cmd.kind = Kind::Stop;
+    if (!strcmp(tokens[1], "DEMO")) cmd.kind = Kind::Demo;
   }
   if (count == 3 && !strcmp(tokens[1], "ARM") && number(tokens[2], 1, UINT32_MAX, cmd.test)) cmd.kind = Kind::Arm;
   if (count == 4 && !strcmp(tokens[1], "RATE") && number(tokens[2], 1, UINT32_MAX, cmd.test) && number(tokens[3], 1, MAX_RATE, cmd.rate)) cmd.kind = Kind::Rate;
   if (count == 5 && !strcmp(tokens[1], "START") && number(tokens[2], 1, UINT32_MAX, cmd.test) && number(tokens[3], 1, MAX_RATE, cmd.rate) && number(tokens[4], 1, MAX_SECONDS, cmd.seconds)) cmd.kind = Kind::Start;
   return cmd;
 }
+
+// A bus fault may resume only the low-rate demo, never the interrupted load.
+class RecoveryDemo {
+  bool pending = false;
+public:
+  void interrupted(bool wasSending) { pending = pending || wasSending; }
+  void cancel() { pending = false; }
+  bool recovered(bool controllerStarted) {
+    if (!controllerStarted || !pending) return false;
+    pending = false;
+    return true;
+  }
+};
 
 struct Due { uint32_t count, skipped; };
 class Pacer {
