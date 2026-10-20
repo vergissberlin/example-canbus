@@ -213,11 +213,11 @@ async function run() {
     assert(load.doc.querySelector('[data-chart-second="60"]').textContent === '60 s', 'Seconds axis missing');
   });
   await check('Language changes during a running test preserve ports, measurements, inputs and paused logs', async () => {
-    const select = load.doc.querySelector('[data-language]');
+    const menu = load.doc.querySelector('.language-menu');
     const commands = JSON.stringify(load.iframe.contentWindow.testCommands);
     const frozenLines = load.doc.querySelectorAll('.log-line').length;
     const chartPath = load.doc.querySelector('#load-rx-line').getAttribute('d');
-    const switchTo = value => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); };
+    const switchTo = value => load.click(`[data-language="${value}"]`);
     switchTo('de');
     assert(load.doc.documentElement.lang === 'de', 'German language missing');
     assert(load.doc.querySelector('#load-start').textContent === 'Test starten ↗', 'Static button not translated');
@@ -237,7 +237,8 @@ async function run() {
     assert(JSON.stringify(load.iframe.contentWindow.testCommands) === commands, 'Language change issued commands');
     load.iframe.style.width = '390px'; await wait(50);
     assert(load.doc.documentElement.scrollWidth <= load.doc.documentElement.clientWidth + 1, 'German page overflows');
-    assert(select.getBoundingClientRect().width > 0, 'Mobile language control hidden');
+    assert(menu.getBoundingClientRect().width > 0, 'Mobile language control hidden');
+    assert(load.doc.querySelector('[data-language=de]').getAttribute('aria-pressed') === 'true', 'Selected language is not indicated');
     load.iframe.style.width = '1160px';
     switchTo('en');
     assert(load.doc.querySelector('#load-target').textContent === '1,000', 'English numbers missing');
@@ -316,18 +317,16 @@ async function run() {
     assert(localized.doc.querySelector('[data-node-status="receiver"]').textContent === 'Nicht verbunden', 'Delayed SVG not translated');
     localized.click('[data-device="sender"] .connect');
     await until(() => localized.doc.querySelector('#console').textContent.includes('Portauswahl abgebrochen.'));
-    const select = localized.doc.querySelector('[data-language]');
-    select.value = 'en'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    localized.click('[data-language=en]');
     assert(localized.doc.documentElement.lang === 'en', 'Blocked storage prevented selection');
     assert(localized.doc.querySelector('#console').textContent.includes('Port selection canceled.'), 'Existing error not retranslated');
-    select.value = 'auto'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    localized.click('[data-language=auto]');
     assert(localized.doc.documentElement.lang === 'de', 'Automatic selection did not return');
   });
   await check('Saved manual preference overrides browser language', async () => {
     const saved = await fixture({ languages: ['de-DE'], preference: 'en', missingSvg: true });
     assert(saved.doc.documentElement.lang === 'en', 'Saved preference ignored');
-    const select = saved.doc.querySelector('[data-language]');
-    select.value = 'de'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    saved.click('[data-language=de]');
     assert(saved.doc.querySelector('.diagram-unavailable').textContent.startsWith('Signaldiagramm konnte'), 'Diagram failure not translated');
   });
   await check('German UI preserves firmware text and exports original logs', async () => {

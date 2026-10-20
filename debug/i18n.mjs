@@ -85,14 +85,18 @@ function refresh() {
   if (globalThis.document) {
     document.documentElement.lang = language.language;
     applyBindings();
-    for (const select of document.querySelectorAll('[data-language]')) select.value = language.preference;
+    for (const button of document.querySelectorAll('button[data-language]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.language === language.preference));
+    }
     for (const button of document.querySelectorAll('[data-load-rate]')) button.textContent = number(Number(button.dataset.loadRate));
   }
   for (const callback of listeners) callback();
 }
 export function initLanguage(doc = document) {
   translate(doc);
-  for (const select of doc.querySelectorAll('[data-language]')) select.addEventListener('change', () => language.select(select.value));
+  for (const button of doc.querySelectorAll('button[data-language]')) {
+    button.addEventListener('click', () => language.select(button.dataset.language));
+  }
   refresh();
 }
 if (globalThis.document) {

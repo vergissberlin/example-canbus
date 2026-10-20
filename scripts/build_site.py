@@ -2,6 +2,7 @@
 """Build the static Pages artifact and version the offline app shell."""
 import hashlib
 from pathlib import Path
+import re
 import shutil
 import sys
 
@@ -23,6 +24,25 @@ for name in ['index.html', 'style.css', 'app.mjs', 'i18n.mjs', 'translations.mjs
 for name in ['canbus-breadboard.svg', 'canbus-communication.svg', 'canlab-opengraph.png']:
     shutil.copyfile(ROOT / 'docs' / name, OUTPUT / 'docs' / name)
 shutil.copytree(ROOT / 'pwa', OUTPUT / 'pwa', dirs_exist_ok=True)
+# One release version for every module (including shared i18n state) and entry asset.
+# A new HTML page must never reuse cached JavaScript from an earlier deployment.
+assets = hashlib.sha256()
+for path in sorted(OUTPUT.rglob('*')):
+    if path.is_file():
+        assets.update(path.relative_to(OUTPUT).as_posix().encode())
+        assets.update(path.read_bytes())
+asset_version = assets.hexdigest()[:16]
+for path in OUTPUT.rglob('*.mjs'):
+    source_module = path.read_text()
+    source_module = re.sub(
+        r"((?:from\s+|import\s*)['\"])(\./[^'\"?]+\.mjs)(?:\?[^'\"]*)?(['\"])",
+        lambda match: f'{match[1]}{match[2]}?v={asset_version}{match[3]}', source_module)
+    path.write_text(source_module)
+for path in OUTPUT.rglob('*.html'):
+    source_html = re.sub(
+        r'((?:src|href)="(?:\./)?debug/[^"?]+\.(?:mjs|css))(?:\?[^\"]*)?(\")',
+        lambda match: f'{match[1]}?v={asset_version}{match[2]}', path.read_text())
+    path.write_text(source_html)
 source = (ROOT / 'sw.js').read_text()
 digest = hashlib.sha256(source.encode())
 for path in sorted(OUTPUT.rglob('*')):
