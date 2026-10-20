@@ -22,7 +22,7 @@ function bootstrap(options) {
           const command = new TextDecoder().decode(value).trim();
           window.testCommands.push({ role, command });
           const parts = command.split(' '), operation = parts[1].toLowerCase();
-          if (operation === 'hello') this.send(`LAB HELLO role=${role} version=1 bitrate=500000 max_rate=20000 max_seconds=60\n`);
+          if (operation === 'hello') this.send(`LAB HELLO role=${role} version=1 bitrate=500000 ${options.autoDemo && role === 'sender' ? 'demo=1 ' : ''}max_rate=20000 max_seconds=60\n`);
           else {
             if (['arm', 'start'].includes(operation)) this.test = Number(parts[2]);
             this.send(`LAB ACK role=${role} command=${operation} test=${this.test}\n`);
@@ -146,6 +146,20 @@ async function run() {
     missing.ports[0].send(rx(9));
     await until(() => missing.doc.querySelector('#rx-count').textContent === '1');
     missing.click('[data-device="receiver"] .disconnect');
+  });
+  await check('Sender connection starts only the one-frame-per-second demo, once per connection', async () => {
+    const demo = await fixture({loadTest:true, autoDemo:true});
+    demo.click('[data-device="sender"] .connect');
+    await until(() => demo.iframe.contentWindow.testCommands.some(item => item.command === 'LAB DEMO'));
+    demo.ports[0].send('LAB HELLO role=sender version=1 bitrate=500000 demo=1\n');
+    demo.click('[data-device="receiver"] .connect');
+    await until(() => demo.doc.querySelectorAll('.device.connected').length === 2);
+    await wait(100);
+    const commands = demo.iframe.contentWindow.testCommands;
+    assert(commands.filter(item => item.command === 'LAB DEMO').length === 1, 'Demo restarted by duplicate HELLO or receiver');
+    assert(!commands.some(item => item.command.startsWith('LAB START') || item.command.startsWith('LAB ARM')), 'Auto demo started a load test');
+    demo.click('[data-device="sender"] .disconnect');
+    demo.click('[data-device="receiver"] .disconnect');
   });
   const load = await fixture({ loadTest: true });
   const senderStats = id => `LAB STATS role=sender test=${id} running=1 target=1000 queued=100 queued_fps=100 rejected=10 skipped=0 cancelled=0 pending=10 failed=0 errors=0 tec=0 rec=0 state=1 elapsed_ms=1000\n`;

@@ -1,6 +1,6 @@
 import { parseLine, counterGap, LineBuffer } from './protocol.mjs';
 import { CommunicationView, loadCommunication } from './communication.mjs?v=builtin-termination';
-import { LoadTest, parseLabLine, timeline, CHART_SERIES } from './load-test.mjs?v=diagnostics1';
+import { LoadTest, parseLabLine, timeline, CHART_SERIES } from './load-test.mjs?v=auto-demo1';
 
 const $ = selector => document.querySelector(selector);
 const MAX_LINES = 2000;
@@ -20,7 +20,14 @@ function log(source, message, kind = null) {
   logs.push({ time: new Date(), source, message, kind: kind || parsed.kind });
   if (logs.length > MAX_LINES) logs.splice(0, logs.length - MAX_LINES);
   const device = devices.get(source);
-  if (device && lab && loadTest.accept(source, lab)) loadActivity(device, lab);
+  if (device && lab && loadTest.accept(source, lab)) {
+    loadActivity(device, lab);
+    if (source === 'sender' && lab.type === 'hello' && lab.role === 'sender'
+        && loadTest.boards.sender.ready && lab.demo === 1 && !device.demoStarted) {
+      device.demoStarted = true;
+      void loadTest.demo().catch(error => log(source, 'Automatic demo could not start: ' + error.message, 'error'));
+    }
+  }
   if (device) communication.event(source, kind ? { kind } : parsed);
   if (device && parsed.kind === 'rx') {
     device.lastRx = Date.now();
@@ -65,6 +72,7 @@ async function connect(device) {
     await port.open({ baudRate: 115200 });
     device.port = port;
     device.previousCounter = null;
+    device.demoStarted = false;
     device.labTotals = null;
     device.lastRx = 0;
     device.stopping = false;

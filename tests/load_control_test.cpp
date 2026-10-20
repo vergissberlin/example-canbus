@@ -6,6 +6,8 @@ using namespace canlab;
 int main() {
   auto cmd = parse("LAB START 123 20000 60");
   assert(cmd.kind == Kind::Start && cmd.test == 123 && cmd.rate == 20000 && cmd.seconds == 60);
+  assert(parse("LAB DEMO").kind == Kind::Demo);
+  assert(parse("LAB DEMO 100").kind == Kind::Invalid);
   assert(parse("LAB ARM 4294967295").kind == Kind::Arm);
   assert(parse("LAB RATE 123 1").kind == Kind::Rate);
   for (const char* bad : {"LAB START 0 1 10", "LAB START 1 0 10", "LAB START 1 20001 10", "LAB START 1 1 61", "LAB START 1 1 0", "LAB START 1 -1 10", "LAB START 1 1e3 10", "LAB START 4294967296 1 10", "LAB START 1 1 10 extra", "LAB STOP extra", "LAB RATE 1 9999999999999999999999999"}) assert(parse(bad).kind == Kind::Invalid);

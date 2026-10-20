@@ -87,6 +87,7 @@ export class LoadTest {
     }
     if (event.type === 'hello') {
       this.boards[role].ready = event.version === 1 && event.bitrate === 500000;
+      this.boards[role].demo = event.demo === 1;
       this.message = this.ready ? 'Ready · 500 kbit/s · Load frames with 8 data bytes.' : 'Waiting for compatible CAN-LAB firmware on both boards.';
     }
     if (event.type === 'ack') {
@@ -149,6 +150,17 @@ export class LoadTest {
         if (pending) { this.cancel(pending.timer); this.pending.delete(key); pending.reject(error); }
       });
     });
+  }
+  async demo() {
+    const sender = this.boards.sender;
+    if (!sender.connected || !sender.ready || !sender.demo || this.busy || this.active) {
+      throw new Error('Sender is not ready for automatic demo mode.');
+    }
+    this.busy = true; this.changed();
+    try {
+      await this.request('sender', 'LAB DEMO', 'demo', 0);
+      this.message = 'Demo running · 1 frame/s. Connect the receiver to see CAN reception.';
+    } finally { this.busy = false; this.changed(); }
   }
   async start(rate, seconds) {
     const chosen = settings(rate, seconds);

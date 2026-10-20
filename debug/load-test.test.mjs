@@ -164,3 +164,38 @@ test('counter resets cannot create negative deltas and long windows keep their a
   assert.equal(c.session.samples[1].span,3000);
   assert.equal(timeline(c.session.samples).paths.rejected.split('M').length-1,2);
 });
+
+test('automatic demo starts with only a compatible sender and waits for its acknowledgement', async () => {
+  const {controller:c,commands}=harness();
+  c.connection('receiver',false);
+  c.accept('sender',{...hello('sender'),demo:1});
+  await c.demo();
+  assert.deepEqual(commands.map(item=>item.command),['LAB DEMO']);
+  assert.equal(c.active,false);
+  assert.equal(c.busy,false);
+  assert.equal(c.session,null);
+});
+test('automatic demo cannot override a load test or run on unsupported firmware', async () => {
+  const {controller:c,commands}=harness();
+  await assert.rejects(()=>c.demo());
+  assert.equal(commands.length,0);
+  c.accept('sender',{...hello('sender'),demo:1});
+  await c.start(100,10);
+  const count=commands.length;
+  await assert.rejects(()=>c.demo());
+  assert.equal(commands.length,count);
+});
+
+test('post-stop measurement windows extend the queued-rate curve down to measured zero', async () => {
+  const {controller:c}=harness();await c.start(1000,10);
+  c.accept('sender',{...tx(101),elapsed_ms:9000});
+  c.accept('sender',{...tx(101),running:0,elapsed_ms:10000,queued:2000});
+  c.accept('sender',{type:'end',role:'sender',test:101,reason:'timeout'});
+  c.accept('sender',{...tx(101),running:0,elapsed_ms:11000,queued:2000,queued_fps:0,pending:0});
+  const chart=timeline(c.session.samples);
+  const points=chart.points.filter(point=>point.series==='sender');
+  assert.deepEqual(points.map(point=>point.value),[1000,1000,0]);
+  assert.equal(points.at(-1).elapsed,11000);
+  assert.equal(chart.paths.sender.split('M').length-1,1,'Stop must not create a missing-data gap');
+  assert.equal(c.active,false);
+});

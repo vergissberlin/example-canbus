@@ -163,8 +163,10 @@ The **“How much gets through?”** panel controls the sender via Web Serial:
    end time. **Stop** ends queueing. The firmware stops automatically when time
    expires, even without an open browser. A frame already being transmitted may
    still complete.
-6. After the test, the sender remains stopped. RESET on the sender restarts
-   the normal demo at one frame per second.
+6. After the test, the sender remains stopped. Reconnecting the sender
+   automatically starts the normal demo at one frame per second. This requires
+   the sender firmware with `demo=1` support; the receiver may connect later.
+   RESET on the sender also restarts the demo.
 
 Load frames use standard ID `0x123` and **eight data bytes**: a four-byte counter
 and a four-byte test ID, both little endian. The normal demo still uses four
@@ -350,3 +352,6 @@ pio run -c receiver.ini -e receiver -t upload
 - `TX … ERROR (peer/wiring?)`: no other node, CANH/CANL swapped or mismatched bitrate.
 - Both sketches use a bitrate of 500 kbit/s.
 - GPIO 2, 8 and 9 are strapping pins; do not use them for CAN.
+
+Sender telemetry keeps its observation clock running after a test ends, so the
+chart includes measured zero-rate windows instead of ending at the last load sample.

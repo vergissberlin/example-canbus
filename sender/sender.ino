@@ -12,19 +12,20 @@ uint32_t ledUntil = 0;
 bool ledActive = false;
 canlab::Pacer pacer;
 bool running = false, demo = true;
-uint32_t testId = 0, targetRate = 1, started = 0, ended = 0, durationMs = 0;
+uint32_t testId = 0, targetRate = 1, started = 0, durationMs = 0;
 uint32_t counter = 0, queued = 0, rejected = 0, skipped = 0, cancelled = 0;
 uint32_t lastReport = 0, reportQueued = 0, lastDemo = 0;
 uint32_t failedBase = 0, errorsBase = 0;
 char input[80]; unsigned inputLength = 0; bool overflow = false;
 
-void hello() { Serial.println("LAB HELLO role=sender version=1 bitrate=500000 max_rate=20000 max_seconds=60"); }
+void hello() { Serial.println("LAB HELLO role=sender version=1 bitrate=500000 demo=1 max_rate=20000 max_seconds=60"); }
 
 void stats() {
   twai_status_info_t s = {};
   if (twai_get_status_info(&s) != ESP_OK) return;
   uint32_t now = millis(), span = now - lastReport;
-  uint32_t elapsed = testId ? (running ? now : ended) - started : 0;
+  // Keep observation time advancing after STOP so measured zero-rate windows reach the chart.
+  uint32_t elapsed = testId ? now - started : 0;
   uint32_t fps = span ? (uint32_t)((uint64_t)(queued - reportQueued) * 1000 / span) : 0;
   Serial.printf("LAB STATS role=sender test=%lu running=%d target=%lu queued=%lu queued_fps=%lu rejected=%lu skipped=%lu cancelled=%lu pending=%lu failed=%lu errors=%lu tec=%lu rec=%lu state=%d elapsed_ms=%lu\n",
     (unsigned long)testId, running, (unsigned long)targetRate, (unsigned long)queued,
@@ -38,7 +39,7 @@ void stats() {
 void stopLoad(const char* reason) {
   demo = false;
   if (running) {
-    running = false; ended = millis();
+    running = false;
     twai_status_info_t s = {};
     if (twai_get_status_info(&s) == ESP_OK) {
       // Queue clearing discards waiting frames; an in-flight frame may still finish.
@@ -59,13 +60,24 @@ void command(const char* line) {
       stopLoad("stop");
       Serial.printf("LAB ACK role=sender command=stop test=%lu\n", (unsigned long)testId);
       break;
+    case canlab::Kind::Demo: {
+      // Reconnecting may resume the low-rate demo, but must never replace a load test.
+      twai_status_info_t s = {};
+      if (running || twai_get_status_info(&s) != ESP_OK || s.state != TWAI_STATE_RUNNING) {
+        Serial.println("LAB ERROR role=sender reason=not_ready"); break;
+      }
+      twai_clear_transmit_queue();
+      demo = true; testId = 0; targetRate = 1; lastDemo = millis();
+      Serial.println("LAB ACK role=sender command=demo test=0");
+      stats(); break;
+    }
     case canlab::Kind::Start: {
       twai_status_info_t s = {};
       if (running || twai_get_status_info(&s) != ESP_OK || s.state != TWAI_STATE_RUNNING || s.msgs_to_tx) {
         Serial.println("LAB ERROR role=sender reason=not_ready"); break;
       }
       demo = false; running = true; testId = c.test; targetRate = c.rate;
-      durationMs = c.seconds * 1000; started = lastReport = millis(); ended = started;
+      durationMs = c.seconds * 1000; started = lastReport = millis();
       counter = queued = rejected = skipped = cancelled = reportQueued = 0;
       failedBase = s.tx_failed_count; errorsBase = s.bus_error_count;
       pacer.reset(micros(), targetRate);
