@@ -75,19 +75,19 @@ test('receiver disconnect requests sender stop without inventing final success',
   c.connection('receiver', false); await Promise.resolve();
   assert.equal(c.active, false); assert.equal(c.ready, false);
   assert.equal(commands.at(-1).command, 'LAB STOP');
-  assert.match(c.message, /unterbrochen/);
+  assert.match(c.message, /lost/);
 });
 test('missing acknowledgements fail startup and send cleanup STOP', async () => {
   const h = harness({ answer: false });
   const run = h.controller.start(1000, 10);
   await Promise.resolve(); h.timeout();
-  await assert.rejects(run, /Bestätigung/);
+  await assert.rejects(run, /acknowledgement/);
   assert.equal(h.controller.active, false); assert.equal(h.commands.at(-1).command, 'LAB STOP');
 });
 test('STOP during startup cancels the sequence before ARM or START can be issued', async () => {
   const h = harness({ answer: false });
   const start = h.controller.start(1000, 10);
-  const rejected = assert.rejects(start, /abgebrochen/);
+  const rejected = assert.rejects(start, /canceled/);
   await Promise.resolve();
   const stop = h.controller.stop();
   await Promise.resolve();

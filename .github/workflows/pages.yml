@@ -38,7 +38,7 @@ jobs:
           cp docs/canbus-breadboard.svg docs/canbus-communication.svg _site/docs/
           python3 - <<'PY'
           from pathlib import Path
-          Path('_site/index.html').write_text('<!doctype html><html lang="de"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=debug/"><title>CAN / LAB</title><a href="debug/">CAN / LAB Debug-Konsole öffnen</a></html>', encoding='utf-8')
+          Path('_site/index.html').write_text('<!doctype html><html lang="en"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=debug/"><title>CAN / LAB</title><a href="debug/">Open CAN / LAB Debug Console</a></html>', encoding='utf-8')
           PY
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -196,7 +196,7 @@ void loop() {
   if (listening) {
     twai_message_t msg = {};
     if (twai_receive(&msg, 0) == ESP_OK) {
-      Serial.printf("RX ID 0x%03lX DLC %d Daten:", (unsigned long)msg.identifier, msg.data_length_code);
+      Serial.printf("RX ID 0x%03lX DLC %d Data:", (unsigned long)msg.identifier, msg.data_length_code);
       if (!msg.rtr) for (unsigned i = 0; i < msg.data_length_code && i < 8; i++) Serial.printf(" %02X", msg.data[i]);
       Serial.println();
     }

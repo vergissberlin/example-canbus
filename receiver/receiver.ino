@@ -64,9 +64,9 @@ void setup() {
   twai_timing_config_t t = TWAI_TIMING_CONFIG_500KBITS();
   twai_filter_config_t f = TWAI_FILTER_CONFIG_ACCEPT_ALL();
   if (twai_driver_install(&g, &t, &f) != ESP_OK || twai_start() != ESP_OK) {
-    Serial.println("TWAI-Start fehlgeschlagen"); while (true) delay(1000);
+    Serial.println("TWAI start failed"); while (true) delay(1000);
   }
-  Serial.println("Empfaenger bereit"); hello(); lastReport = lastWait = millis();
+  Serial.println("Receiver ready"); hello(); lastReport = lastWait = millis();
 }
 void loop() {
   serialCommands();
@@ -87,10 +87,10 @@ void loop() {
       }
       // Test frames are never printed individually, including unknown test IDs.
     } else {
-      Serial.printf("RX ID 0x%03lX DLC %d Daten:", (unsigned long)msg.identifier, msg.data_length_code);
+      Serial.printf("RX ID 0x%03lX DLC %d Data:", (unsigned long)msg.identifier, msg.data_length_code);
       if (!msg.rtr) for (int j = 0; j < msg.data_length_code && j < 8; j++) Serial.printf(" %02X", msg.data[j]);
       if (!msg.rtr && !msg.extd && msg.identifier == 0x123 && msg.data_length_code == 4) {
-        uint32_t count; memcpy(&count, msg.data, 4); Serial.printf("  (Zaehler=%lu)", (unsigned long)count);
+        uint32_t count; memcpy(&count, msg.data, 4); Serial.printf("  (Counter=%lu)", (unsigned long)count);
       }
       Serial.println();
     }
@@ -99,6 +99,6 @@ void loop() {
   if (activity) lastWait = now;
   if (ledUntil && (int32_t)(now - ledUntil) >= 0) { digitalWrite(LED_PIN, HIGH); ledUntil = 0; }
   if ((uint32_t)(now - lastReport) >= 1000) stats();
-  if (!testId && (uint32_t)(now - lastWait) >= 1000) { Serial.println("... warte auf Frames"); lastWait = now; }
+  if (!testId && (uint32_t)(now - lastWait) >= 1000) { Serial.println("... waiting for frames"); lastWait = now; }
   delay(1);
 }
