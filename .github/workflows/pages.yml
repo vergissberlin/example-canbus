@@ -6,6 +6,8 @@ on:
     paths:
       - 'debug/**'
       - 'docs/**'
+      - 'firmware/**'
+      - 'tests/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -26,11 +28,13 @@ jobs:
           node-version: '22'
       - name: Verify parsers and signal visualization
         run: node --test debug/*.test.mjs
+      - name: Verify firmware command bounds and scheduler
+        run: c++ -std=c++11 -Wall -Wextra -Werror tests/load_control_test.cpp -o /tmp/canlab-control-test && /tmp/canlab-control-test
       - uses: actions/configure-pages@v5
       - name: Prepare static site
         run: |
           mkdir -p _site/debug _site/docs
-          cp debug/index.html debug/style.css debug/app.mjs debug/protocol.mjs debug/communication.mjs _site/debug/
+          cp debug/index.html debug/style.css debug/app.mjs debug/protocol.mjs debug/communication.mjs debug/load-test.mjs _site/debug/
           cp docs/canbus-breadboard.svg docs/canbus-communication.svg _site/docs/
           python3 - <<'PY'
           from pathlib import Path

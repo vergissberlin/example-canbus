@@ -1,10 +1,12 @@
 import { parseLine, counterGap, LineBuffer } from './protocol.mjs';
 import { CommunicationView, loadCommunication } from './communication.mjs';
+import { LoadTest, parseLabLine } from './load-test.mjs';
 
 const $ = selector => document.querySelector(selector);
 const MAX_LINES = 2000;
 const devices = new Map();
 const communication = new CommunicationView();
+const loadTest = new LoadTest({ send: writeCommand, changed: renderLoad });
 // Loading the optional drawing must never block USB initialization.
 void loadCommunication(document.querySelector('#communication-diagram'), communication);
 let logs = [], paused = false, dirty = true;
@@ -14,9 +16,11 @@ const supported = 'serial' in navigator && window.isSecureContext;
 function log(source, message, kind = null) {
   if (!message.trim()) return;
   const parsed = parseLine(message);
+  const lab = parseLabLine(message);
   logs.push({ time: new Date(), source, message, kind: kind || parsed.kind });
   if (logs.length > MAX_LINES) logs.splice(0, logs.length - MAX_LINES);
   const device = devices.get(source);
+  if (device && lab && loadTest.accept(source, lab)) loadActivity(device, lab);
   if (device) communication.event(source, kind ? { kind } : parsed);
   if (device && parsed.kind === 'rx') {
     device.lastRx = Date.now();
@@ -32,8 +36,8 @@ function log(source, message, kind = null) {
 }
 
 function updateDevice(device, state) {
-  if (state === 'connected') communication.connection(device.name, true);
-  else if (state === 'idle' || state === 'closing') communication.connection(device.name, false);
+  if (state === 'connected') { communication.connection(device.name, true); loadTest.connection(device.name, true); }
+  else if (state === 'idle' || state === 'closing') { communication.connection(device.name, false); loadTest.connection(device.name, false); }
   device.card.classList.toggle('connected', state === 'connected');
   device.card.querySelector('.device-state').textContent = {
     idle: 'Nicht verbunden', connecting: 'Port auswählen / verbinden …',
@@ -61,6 +65,7 @@ async function connect(device) {
     await port.open({ baudRate: 115200 });
     device.port = port;
     device.previousCounter = null;
+    device.labTotals = null;
     device.lastRx = 0;
     device.stopping = false;
     const info = port.getInfo();
@@ -70,6 +75,7 @@ async function connect(device) {
     updateDevice(device, 'connected');
     log(device.name, 'USB verbunden. Warte auf serielle Ausgabe …', 'system');
     device.task = read(device);
+    void loadTest.identify(device.name);
   } catch (error) {
     if (device.port) { try { await device.port.close(); } catch {} device.port = null; }
     updateDevice(device, 'idle');
@@ -106,6 +112,7 @@ async function read(device) {
     for (const line of lines.push(decoder.decode())) log(device.name, line);
     const tail = lines.flush();
     if (tail) log(device.name, tail);
+    try { await device.writes; } catch {}
     try { await device.port?.close(); } catch {}
     device.port = null;
     device.stopping = false;
@@ -117,11 +124,84 @@ async function read(device) {
 
 async function disconnect(device) {
   if (!device.port || device.stopping) return;
+  if (loadTest.active) { try { await loadTest.stop(); } catch {} }
   device.stopping = true;
   updateDevice(device, 'closing');
   try { await device.reader?.cancel(); await device.task; }
   catch (error) { log(device.name, explainError(error), 'error'); }
 }
+
+async function writeCommand(name, command) {
+  const device = devices.get(name);
+  if (!device?.port?.writable || device.stopping) throw new Error('USB-Schreiben nicht verfügbar.');
+  const task = (device.writes || Promise.resolve()).catch(() => {}).then(async () => {
+    if (!device.port?.writable || device.stopping) throw new Error('USB-Verbindung beendet.');
+    const writer = device.port.writable.getWriter();
+    try { await writer.write(new TextEncoder().encode(command + '\n')); }
+    finally { writer.releaseLock(); }
+  });
+  device.writes = task;
+  return task;
+}
+
+function loadActivity(device, event) {
+  if (event.type === 'error') { communication.event(device.name, { kind: 'error' }); return; }
+  if (event.type !== 'stats' || !event.test || event.test !== loadTest.session?.id) return;
+  const previous = device.labTotals?.test === event.test ? device.labTotals : null;
+  const failed = event.state === 2 || event.errors > (previous?.errors ?? 0);
+  if (failed) communication.event(device.name, { kind: 'error' });
+  if (event.role === 'receiver') {
+    const delta = Math.max(0, event.rx - (previous?.rx ?? 0));
+    rxCount += delta;
+    gapCount += Math.max(0, event.gaps - (previous?.gaps ?? 0));
+    if (delta) {
+      latestCounter = event.counter; lastRx = device.lastRx = Date.now();
+      if (!failed) communication.event(device.name, { kind: 'rx', id: 0x123, counter: event.counter });
+    }
+  } else if (!failed && event.queued > (previous?.queued ?? 0)) communication.event(device.name, { kind: 'queued' });
+  device.labTotals = event;
+}
+
+function renderLoad() {
+  const session = loadTest.session, tx = session?.tx, rx = session?.rx;
+  $('#load-start').disabled = !loadTest.ready || loadTest.busy || loadTest.active;
+  $('#load-rate-apply').disabled = !loadTest.active || loadTest.busy;
+  $('#load-stop').disabled = !loadTest.boards.sender.connected || !loadTest.boards.sender.ready;
+  $('#load-duration').disabled = loadTest.active || loadTest.busy;
+  $('#load-rate').disabled = loadTest.busy;
+  $('#load-slider').disabled = loadTest.busy;
+  $('#load-status').textContent = loadTest.message;
+  $('#load-test').classList.toggle('is-running', loadTest.active);
+  $('#load-target').textContent = session ? session.rate.toLocaleString('de-DE') : '—';
+  $('#load-actual').textContent = rx ? rx.rx_fps.toLocaleString('de-DE') : '—';
+  $('#load-queued-rate').textContent = tx ? tx.queued_fps.toLocaleString('de-DE') : '—';
+  const value = (id, n) => { $(id).textContent = n === undefined ? '—' : n.toLocaleString('de-DE'); };
+  value('#load-queued', tx?.queued); value('#load-rx-total', rx?.rx); value('#load-rejected', tx?.rejected);
+  value('#load-gaps', rx?.gaps); value('#load-skipped', tx?.skipped); value('#load-pending', tx?.pending);
+  $('#load-errors').textContent = `${tx?.errors ?? '—'} / ${rx?.errors ?? '—'}`;
+  $('#load-missed').textContent = `${rx?.missed ?? '—'} / ${rx?.overrun ?? '—'}`;
+  $('#load-elapsed').textContent = tx ? `${(tx.elapsed_ms / 1000).toFixed(1)} / ${session.seconds} s` : 'Noch kein Lasttest';
+  $('#load-freshness').textContent = session?.updated && Date.now() - session.updated > 3000
+    ? 'Statusbericht älter als drei Sekunden; die zuletzt gemessene Rate bleibt angezeigt.' : 'Messfenster der Firmware · etwa ein Statusbericht pro Sekunde';
+  const samples = session?.samples ?? [], maximum = Math.max(session?.rate || 1, ...samples.map(s => s.fps));
+  $('#load-rx-line').setAttribute('points', samples.map((s, i) => `${20 + i * 600 / 29},${90 - s.fps / maximum * 75}`).join(' '));
+  const y = 90 - (session?.rate || 1) / maximum * 75;
+  $('#load-target-line').setAttribute('d', session ? `M20 ${y}H620` : '');
+}
+
+for (const id of ['load-rate', 'load-slider']) $('#' + id).addEventListener('input', event => {
+  $(id === 'load-rate' ? '#load-slider' : '#load-rate').value = event.target.value;
+});
+for (const button of document.querySelectorAll('[data-load-rate]')) button.addEventListener('click', () => {
+  $('#load-rate').value = $('#load-slider').value = button.dataset.loadRate;
+});
+for (const [id, action] of [
+  ['load-start', () => loadTest.start($('#load-rate').value, $('#load-duration').value)],
+  ['load-rate-apply', () => loadTest.rate($('#load-rate').value)],
+  ['load-stop', () => loadTest.stop()]
+]) $('#' + id).addEventListener('click', () => {
+  void action().catch(error => { loadTest.message = error.message; renderLoad(); log('system', error.message, 'error'); });
+});
 
 for (const name of ['sender', 'receiver']) {
   const card = $(`[data-device=${name}]`);
@@ -167,6 +247,7 @@ function render() {
 }
 
 function metrics() {
+  renderLoad();
   communication.renderFrame();
   $('#rx-count').textContent = rxCount.toLocaleString('de-DE');
   $('#counter').textContent = latestCounter === null ? '—' : latestCounter.toLocaleString('de-DE');

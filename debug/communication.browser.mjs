@@ -12,16 +12,29 @@ function bootstrap(options) {
     window.fetch = (url, ...args) => String(url).includes('canbus-communication.svg')
       ? Promise.resolve(new Response('', { status: 404 })) : originalFetch(url, ...args);
   }
-  function port() {
+  window.testCommands = [];
+  function port(role) {
     return {
-      readable: null, controller: null,
-      async open() { this.readable = new ReadableStream({ start: controller => { this.controller = controller; } }); },
-      async close() { this.readable = null; }, async setSignals() {},
+      readable: null, controller: null, test: 0,
+      async open() {
+        this.readable = new ReadableStream({ start: controller => { this.controller = controller; } });
+        if (options.loadTest) this.writable = new WritableStream({ write: value => {
+          const command = new TextDecoder().decode(value).trim();
+          window.testCommands.push({ role, command });
+          const parts = command.split(' '), operation = parts[1].toLowerCase();
+          if (operation === 'hello') this.send(`LAB HELLO role=${role} version=1 bitrate=500000 max_rate=20000 max_seconds=60\n`);
+          else {
+            if (['arm', 'start'].includes(operation)) this.test = Number(parts[2]);
+            this.send(`LAB ACK role=${role} command=${operation} test=${this.test}\n`);
+          }
+        } });
+      },
+      async close() { this.readable = this.writable = null; }, async setSignals() {},
       getInfo() { return { usbVendorId: 0x303a, usbProductId: 0x1001 }; },
       send(line) { this.controller.enqueue(new TextEncoder().encode(line)); }
     };
   }
-  const ports = [port(), port()]; let next = 0;
+  const ports = [port('sender'), port('receiver')]; let next = 0;
   Object.defineProperty(navigator, 'serial', { configurable: true, value: { requestPort: async () => ports[next++] } });
   window.testPorts = ports;
 }
@@ -133,6 +146,54 @@ async function run() {
     missing.ports[0].send(rx(9));
     await until(() => missing.doc.querySelector('#rx-count').textContent === '1');
     missing.click('[data-device="receiver"] .disconnect');
+  });
+  const load = await fixture({ loadTest: true });
+  const senderStats = id => `LAB STATS role=sender test=${id} running=1 target=1000 queued=100 queued_fps=100 rejected=10 skipped=0 cancelled=0 pending=10 failed=0 errors=0 tec=0 rec=0 state=1 elapsed_ms=1000\n`;
+  const receiverStats = (id, count) => `LAB STATS role=receiver test=${id} rx=${count} rx_fps=${count} counter=${count - 1} gaps=0 duplicates=0 missed=0 overrun=0 errors=0 tec=0 rec=0 state=1 elapsed_ms=1000\n`;
+  await check('Lasttest startet erst nach Firmware-Handshake und ARM-Bestätigung', async () => {
+    assert(load.doc.querySelector('#load-start').disabled, 'Start ohne USB möglich');
+    load.click('[data-device="sender"] .connect'); load.click('[data-device="receiver"] .connect');
+    await until(() => !load.doc.querySelector('#load-start').disabled);
+    load.click('[data-load-rate="1000"]'); load.click('#load-start');
+    await until(() => load.doc.querySelector('#load-test').classList.contains('is-running'));
+    const commands = load.iframe.contentWindow.testCommands.map(x => x.command);
+    assert(commands.findIndex(c => c.startsWith('LAB ARM')) < commands.findIndex(c => c.startsWith('LAB START')), 'Sender vor Receiver gestartet');
+  });
+  await check('Lasttest: TX-Statistik erzeugt keinen erfundenen Empfang', async () => {
+    load.ports[0].send(senderStats(load.ports[0].test));
+    await until(() => load.doc.querySelector('#load-queued').textContent === '100');
+    assert(load.doc.querySelector('#load-actual').textContent === '—', 'Empfang aus TX abgeleitet');
+    assert(!load.active('canh'), 'TX aktiviert CAN-Empfang');
+  });
+  await check('Lasttest: RX-Summen aktualisieren Metriken auch bei Pause und Filter genau einmal', async () => {
+    load.click('#pause');
+    const search = load.doc.querySelector('#search'); search.value = 'keine-treffer'; search.dispatchEvent(new Event('input', { bubbles: true }));
+    const line = receiverStats(load.ports[0].test, 90);
+    load.ports[1].send(line); load.ports[1].send(line);
+    await until(() => load.doc.querySelector('#load-actual').textContent === '90');
+    assert(load.doc.querySelector('#rx-count').textContent === '90', 'Doppelte Summierung');
+    assert(load.doc.querySelector('#load-rejected').textContent === '10', 'Queue-Rückweisungen fehlen');
+    assert(load.doc.querySelector('#load-gaps').textContent === '0', 'Queue-Rückweisungen als RX-Verlust gezählt');
+  });
+  await check('Lasttest: neue Rate wird bestätigt, Stopp bleibt bedienbar', async () => {
+    load.click('[data-load-rate="5000"]'); load.click('#load-rate-apply');
+    await until(() => load.doc.querySelector('#load-target').textContent === '5.000');
+    load.click('#load-stop');
+    await until(() => !load.doc.querySelector('#load-test').classList.contains('is-running'));
+    assert(load.doc.querySelector('#load-rate-apply').disabled, 'Ratenänderung nach Stopp möglich');
+    assert(load.doc.querySelector('#load-actual').textContent === '90', 'Endwerte verschwunden');
+  });
+  await check('Lasttest: 390px bleibt ohne horizontales Seiten-Overflow', async () => {
+    load.iframe.style.width = '390px'; await wait(50);
+    assert(load.doc.documentElement.scrollWidth <= load.doc.documentElement.clientWidth + 1, 'Lasttest läuft über');
+    load.iframe.style.width = '1160px';
+  });
+  await check('Lasttest: Receiver-Trennen fordert Sender-Stopp an', async () => {
+    load.click('#load-start'); await until(() => load.doc.querySelector('#load-test').classList.contains('is-running'));
+    load.click('[data-device="receiver"] .disconnect');
+    await until(() => !load.doc.querySelector('[data-device="receiver"]').classList.contains('connected'));
+    assert(load.doc.querySelector('#load-start').disabled, 'Start nach Trennen möglich');
+    assert(load.iframe.contentWindow.testCommands.at(-1).command === 'LAB STOP', 'Kein Stopp beim Trennen');
   });
   // Leave a clean simulated view for visual inspection, never the real USB page.
   await fixture();
