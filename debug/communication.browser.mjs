@@ -7,6 +7,20 @@ async function until(check) {
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
 function bootstrap(options) {
+  // Isolate preferences from the real app and make tests independent of browser locale.
+  const preferences = new Map(options.preference ? [['canlab.language', options.preference]] : []);
+  Object.defineProperty(window, 'localStorage', { configurable: true, get() {
+    if (options.blockStorage) throw new DOMException('Denied', 'SecurityError');
+    return { getItem: key => preferences.get(key), setItem: (key, value) => preferences.set(key, value) };
+  } });
+  Object.defineProperty(navigator, 'languages', { configurable: true, value: options.languages ?? ['en-US'] });
+  if (options.delaySvg) {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (url, ...args) => {
+      if (String(url).includes('canbus-communication.svg')) await new Promise(resolve => setTimeout(resolve, 150));
+      return originalFetch(url, ...args);
+    };
+  }
   if (options.missingSvg) {
     const originalFetch = window.fetch.bind(window);
     window.fetch = (url, ...args) => String(url).includes('canbus-communication.svg')
@@ -35,7 +49,7 @@ function bootstrap(options) {
     };
   }
   const ports = [port('sender'), port('receiver')]; let next = 0;
-  Object.defineProperty(navigator, 'serial', { configurable: true, value: { requestPort: async () => ports[next++] } });
+  Object.defineProperty(navigator, 'serial', { configurable: true, value: { requestPort: async () => { if (options.cancelPort) throw new DOMException('Canceled', 'NotFoundError'); return ports[next++]; } } });
   window.testPorts = ports;
 }
 
@@ -198,6 +212,38 @@ async function run() {
     assert(load.doc.querySelectorAll('#load-chart-points circle[data-series=sender], #load-chart-points circle[data-series=receiver]').length === 2, 'Duplicate or missing points');
     assert(load.doc.querySelector('[data-chart-second="60"]').textContent === '60 s', 'Seconds axis missing');
   });
+  await check('Language changes during a running test preserve ports, measurements, inputs and paused logs', async () => {
+    const select = load.doc.querySelector('[data-language]');
+    const commands = JSON.stringify(load.iframe.contentWindow.testCommands);
+    const frozenLines = load.doc.querySelectorAll('.log-line').length;
+    const chartPath = load.doc.querySelector('#load-rx-line').getAttribute('d');
+    const switchTo = value => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); };
+    switchTo('de');
+    assert(load.doc.documentElement.lang === 'de', 'German language missing');
+    assert(load.doc.querySelector('#load-start').textContent === 'Test starten ↗', 'Static button not translated');
+    assert(load.doc.querySelector('#load-status').textContent.startsWith('Lasttest läuft.'), 'Status not translated');
+    assert(load.doc.querySelector('#load-target').textContent === '1.000', 'Numbers not localized');
+    assert(load.doc.querySelector('#pause').textContent === 'Anzeige fortsetzen', 'Paused label not translated');
+    assert(load.doc.querySelector('[data-node-status="receiver"]').textContent === 'RX erkannt', 'SVG status not translated');
+    assert(load.doc.querySelector('svg title').textContent.includes('CAN-Kommunikation'), 'SVG accessible title not translated');
+    assert(load.doc.querySelector('#load-chart-points circle').getAttribute('aria-label').includes('1,00 s'), 'Existing tooltip not translated');
+    assert(load.doc.querySelector('#load-test').classList.contains('is-running'), 'Test was stopped');
+    assert(load.doc.querySelectorAll('.device.connected').length === 2, 'USB lost');
+    assert(load.doc.querySelector('#load-rate').value === '1000', 'Input reset');
+    assert(load.doc.querySelector('#search').value === 'no-matches', 'Filter reset');
+    assert(load.doc.querySelector('#load-actual').textContent === '90', 'Measurements lost');
+    assert(load.doc.querySelector('#load-rx-line').getAttribute('d') === chartPath, 'Chart reset');
+    assert(load.doc.querySelectorAll('.log-line').length === frozenLines, 'Paused display advanced');
+    assert(JSON.stringify(load.iframe.contentWindow.testCommands) === commands, 'Language change issued commands');
+    load.iframe.style.width = '390px'; await wait(50);
+    assert(load.doc.documentElement.scrollWidth <= load.doc.documentElement.clientWidth + 1, 'German page overflows');
+    assert(select.getBoundingClientRect().width > 0, 'Mobile language control hidden');
+    load.iframe.style.width = '1160px';
+    switchTo('en');
+    assert(load.doc.querySelector('#load-target').textContent === '1,000', 'English numbers missing');
+    switchTo('auto');
+    assert(load.doc.documentElement.lang === 'en', 'Automatic choice not restored');
+  });
   await check('Hover immediately shows series name, value, unit and measurement time', async () => {
     const point = load.doc.querySelector('#load-chart-points circle[data-series="sender"]');
     const svg = load.doc.querySelector('.load-chart');
@@ -262,6 +308,44 @@ async function run() {
     await until(() => !load.doc.querySelector('[data-device="receiver"]').classList.contains('connected'));
     assert(load.doc.querySelector('#load-start').disabled, 'Start possible after disconnecting');
     assert(load.iframe.contentWindow.testCommands.at(-1).command === 'LAB STOP', 'No stop on disconnect');
+  });
+  await check('German automatic selection, delayed SVG and blocked storage work together', async () => {
+    const localized = await fixture({ languages: ['fr-FR', 'de-AT'], blockStorage: true, delaySvg: true, cancelPort: true });
+    assert(localized.doc.documentElement.lang === 'de', 'Preferred supported language not selected');
+    assert(localized.doc.title.includes('Lasttests'), 'Document title missing');
+    assert(localized.doc.querySelector('[data-node-status="receiver"]').textContent === 'Nicht verbunden', 'Delayed SVG not translated');
+    localized.click('[data-device="sender"] .connect');
+    await until(() => localized.doc.querySelector('#console').textContent.includes('Portauswahl abgebrochen.'));
+    const select = localized.doc.querySelector('[data-language]');
+    select.value = 'en'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    assert(localized.doc.documentElement.lang === 'en', 'Blocked storage prevented selection');
+    assert(localized.doc.querySelector('#console').textContent.includes('Port selection canceled.'), 'Existing error not retranslated');
+    select.value = 'auto'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    assert(localized.doc.documentElement.lang === 'de', 'Automatic selection did not return');
+  });
+  await check('Saved manual preference overrides browser language', async () => {
+    const saved = await fixture({ languages: ['de-DE'], preference: 'en', missingSvg: true });
+    assert(saved.doc.documentElement.lang === 'en', 'Saved preference ignored');
+    const select = saved.doc.querySelector('[data-language]');
+    select.value = 'de'; select.dispatchEvent(new Event('change', { bubbles: true }));
+    assert(saved.doc.querySelector('.diagram-unavailable').textContent.startsWith('Signaldiagramm konnte'), 'Diagram failure not translated');
+  });
+  await check('German UI preserves firmware text and exports original logs', async () => {
+    const raw = await fixture({ languages: ['de-DE'] });
+    raw.click('[data-device="sender"] .connect');
+    await until(() => raw.doc.querySelector('.device.connected'));
+    raw.ports[0].send('Receiver\nRX ID 0x123 DLC 4 Data: 01 00 00 00  (Counter=1)\n');
+    await until(() => [...raw.doc.querySelectorAll('.log-message')].some(node => node.textContent === 'Receiver'));
+    assert(raw.doc.querySelector('#console').textContent.includes('RX ID 0x123 DLC 4 Data: 01 00 00 00  (Counter=1)'), 'Firmware log changed');
+    const win = raw.iframe.contentWindow, original = win.URL.createObjectURL.bind(win.URL);
+    let exported;
+    win.URL.createObjectURL = blob => { exported = blob; return original(blob); };
+    raw.doc.addEventListener('click', event => { if (event.target.closest('a[download]')) event.preventDefault(); }, true);
+    raw.click('#export');
+    const data = await exported.text();
+    assert(data.includes('[sender] Receiver\n'), 'Raw device text translated in export');
+    assert(data.includes('[system] Ready. Sender and receiver can be connected simultaneously.'), 'Original application log changed in export');
+    assert(!data.includes('Bereit. Sender und Empfänger'), 'Localized UI text leaked into export');
   });
   await check('Chart shows bus-off recovery and confirmed one-frame-per-second fallback', async () => {
     const load=await fixture({loadTest:true});

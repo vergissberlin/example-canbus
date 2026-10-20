@@ -1,10 +1,11 @@
+import { message, text, LocalizedError, errorMessage } from './i18n.mjs';
 // USB command protocol and load-test state. No CAN throughput is inferred from USB timing.
 const ROLES = ['sender', 'receiver'];
 const UINT32_MAX = 0xffffffff;
 export function settings(rate, seconds) {
   const fps = Number(rate), duration = Number(seconds);
-  if (!Number.isInteger(fps) || fps < 1 || fps > 20000) throw new Error('Choose an integer frame rate from 1 to 20,000 frames/s.');
-  if (!Number.isInteger(duration) || duration < 1 || duration > 60) throw new Error('Choose a test duration from 1 to 60 seconds.');
+  if (!Number.isInteger(fps) || fps < 1 || fps > 20000) throw new LocalizedError('Choose an integer frame rate from 1 to 20,000 frames/s.');
+  if (!Number.isInteger(duration) || duration < 1 || duration > 60) throw new LocalizedError('Choose a test duration from 1 to 60 seconds.');
   return { rate: fps, seconds: duration };
 }
 export function parseLabLine(line) {
@@ -55,11 +56,13 @@ export class LoadTest {
     this.send = send; this.changed = changed; this.now = now; this.schedule = schedule; this.cancel = cancel;
     this.boards = Object.fromEntries(ROLES.map(role => [role, { connected: false, ready: false }]));
     this.pending = new Map(); this.session = null; this.active = false; this.busy = false;
-    this.message = 'Connect both boards. The load test requires CAN-LAB firmware.';
+    this.message = message('Connect both boards. The load test requires CAN-LAB firmware.');
     this.nextId = this.now() >>> 0;
     this.epoch = 0;
     this.recovery = null;
   }
+  get message() { return text(this.messageDescriptor); }
+  set message(value) { this.messageDescriptor = value; }
   get ready() { return ROLES.every(role => this.boards[role].connected && this.boards[role].ready); }
   connection(role, connected) {
     this.boards[role] = { connected, ready: false };
@@ -67,11 +70,11 @@ export class LoadTest {
     if (!connected) {
       this.epoch++;
       for (const [key, pending] of this.pending) if (key.startsWith(role + ':')) {
-        this.cancel(pending.timer); this.pending.delete(key); pending.reject(new Error('USB connection lost.'));
+        this.cancel(pending.timer); this.pending.delete(key); pending.reject(new LocalizedError('USB connection lost.'));
       }
       if (this.active || this.busy) {
         this.active = false;
-        this.message = 'Connection lost. Stop requested; the firmware also limits the test to its duration.';
+        this.message = message('Connection lost. Stop requested; the firmware also limits the test to its duration.');
         if (role !== 'sender' && this.boards.sender.connected) void this.send('sender', 'LAB STOP').catch(() => {});
       }
     }
@@ -79,19 +82,19 @@ export class LoadTest {
   }
   async identify(role) {
     try { await this.send(role, 'LAB HELLO'); }
-    catch { this.message = 'USB writing unavailable. The load test remains disabled.'; this.changed(); }
+    catch { this.message = message('USB writing unavailable. The load test remains disabled.'); this.changed(); }
   }
   accept(role, event) {
     if (!event || !this.boards[role].connected) return false;
     if (event.role !== role) {
       this.boards[role].ready = false;
-      this.message = 'Sender and receiver are swapped. Disconnect the ports and assign them to the correct cards.';
+      this.message = message('Sender and receiver are swapped. Disconnect the ports and assign them to the correct cards.');
       this.changed(); return false;
     }
     if (event.type === 'hello') {
       this.boards[role].ready = event.version === 1 && event.bitrate === 500000;
       this.boards[role].demo = event.demo === 1;
-      this.message = this.ready ? 'Ready · 500 kbit/s · Load frames with 8 data bytes.' : 'Waiting for compatible CAN-LAB firmware on both boards.';
+      this.message = message(this.ready ? 'Ready · 500 kbit/s · Load frames with 8 data bytes.' : 'Waiting for compatible CAN-LAB firmware on both boards.');
     }
     if (event.type === 'ack') {
       const key = role + ':' + event.command, pending = this.pending.get(key);
@@ -100,9 +103,9 @@ export class LoadTest {
       }
     }
     if (event.type === 'error') {
-      this.message = `${role === 'sender' ? 'Sender' : 'Receiver'} rejected the command: ${event.reason}`;
+      this.message = message('{role} rejected the command: {reason}', { role: message(role === 'sender' ? 'Sender' : 'Receiver'), reason: event.reason });
       for (const [key, pending] of this.pending) if (key.startsWith(role + ':')) {
-        this.cancel(pending.timer); this.pending.delete(key); pending.reject(new Error(this.message));
+        this.cancel(pending.timer); this.pending.delete(key); pending.reject(new LocalizedError(this.messageDescriptor));
       }
     }
     if (event.type === 'stats' && role === 'sender' && (event.state === 2 || event.state === 3)) {
@@ -110,7 +113,7 @@ export class LoadTest {
     }
     if (event.type === 'recovered' && role === 'sender' && event.demo === 1) {
       this.recovery = 'recovered';
-      this.message = 'CAN recovered · Demo resumed at 1 frame/s. The interrupted load test remains stopped.';
+      this.message = message('CAN recovered · Demo resumed at 1 frame/s. The interrupted load test remains stopped.');
     }
     if (this.session && event.test === this.session.id) {
       if (event.type === 'stats') {
@@ -138,8 +141,8 @@ export class LoadTest {
       if (event.type === 'end') {
         this.active = false; this.session.reason = event.reason;
         if (event.reason === 'bus_off') this.recovery = 'recovering';
-        this.message = event.reason === 'timeout' ? 'Test duration reached. Sender stopped; final reception measurements are still arriving.'
-          : event.reason === 'stop' ? 'Sender stopped; final reception measurements are still arriving.' : `Test ended: ${event.reason}`;
+        this.message = message(event.reason === 'timeout' ? 'Test duration reached. Sender stopped; final reception measurements are still arriving.'
+          : event.reason === 'stop' ? 'Sender stopped; final reception measurements are still arriving.' : 'Test ended: {reason}', { reason: event.reason });
       }
     }
     this.changed(); return true;
@@ -147,13 +150,13 @@ export class LoadTest {
   request(role, command, acknowledgement, test = null) {
     const key = role + ':' + acknowledgement;
     if (this.pending.has(key)) {
-      if (acknowledgement !== 'stop') return Promise.reject(new Error('Command already in progress.'));
+      if (acknowledgement !== 'stop') return Promise.reject(new LocalizedError('Command already in progress.'));
       const old = this.pending.get(key); this.cancel(old.timer); this.pending.delete(key);
-      old.reject(new Error('Start canceled by stop.'));
+      old.reject(new LocalizedError('Start canceled by stop.'));
     }
     return new Promise((resolve, reject) => {
       const timer = this.schedule(() => {
-        this.pending.delete(key); reject(new Error('No firmware acknowledgement. Check the connection and firmware.'));
+        this.pending.delete(key); reject(new LocalizedError('No firmware acknowledgement. Check the connection and firmware.'));
       }, 3000);
       this.pending.set(key, { resolve, reject, timer, test });
       Promise.resolve().then(() => this.send(role, command)).catch(error => {
@@ -165,21 +168,21 @@ export class LoadTest {
   async demo() {
     const sender = this.boards.sender;
     if (!sender.connected || !sender.ready || !sender.demo || this.busy || this.active) {
-      throw new Error('Sender is not ready for automatic demo mode.');
+      throw new LocalizedError('Sender is not ready for automatic demo mode.');
     }
     this.busy = true; this.changed();
     try {
       await this.request('sender', 'LAB DEMO', 'demo', 0);
-      this.message = 'Demo running · 1 frame/s. Connect the receiver to see CAN reception.';
+      this.message = message('Demo running · 1 frame/s. Connect the receiver to see CAN reception.');
     } finally { this.busy = false; this.changed(); }
   }
   async start(rate, seconds) {
     const chosen = settings(rate, seconds);
-    if (!this.ready || this.busy || this.active) throw new Error('Both matching boards must be connected and ready.');
+    if (!this.ready || this.busy || this.active) throw new LocalizedError('Both matching boards must be connected and ready.');
     this.recovery = null;
-    this.busy = true; this.message = 'Preparing receiver and starting sender …'; this.changed();
+    this.busy = true; this.message = message('Preparing receiver and starting sender …'); this.changed();
     const epoch = ++this.epoch;
-    const stillCurrent = () => { if (epoch !== this.epoch) throw new Error('Start canceled by stop or disconnect.'); };
+    const stillCurrent = () => { if (epoch !== this.epoch) throw new LocalizedError('Start canceled by stop or disconnect.'); };
     const id = this.nextId = ((this.nextId + 1) >>> 0) || 1;
     this.session = { id, rate: chosen.rate, seconds: chosen.seconds, tx: null, rx: null, samples: [], updated: 0, reason: null };
     try {
@@ -191,9 +194,9 @@ export class LoadTest {
       await this.request('sender', `LAB START ${id} ${chosen.rate} ${chosen.seconds}`, 'start', id);
       stillCurrent();
       this.active = this.session.reason === null;
-      this.message = this.active ? 'Load test running. The configured rate is a target, not confirmed bus throughput.' : this.message;
+      if (this.active) this.message = message('Load test running. The configured rate is a target, not confirmed bus throughput.');
     } catch (error) {
-      this.active = false; this.message = error.message;
+      this.active = false; this.message = errorMessage(error);
       // START may have reached the device even when its acknowledgement was lost.
       if (this.boards.sender.connected) await this.send('sender', 'LAB STOP').catch(() => {});
       throw error;
@@ -201,25 +204,25 @@ export class LoadTest {
   }
   async rate(rate) {
     const chosen = settings(rate, this.session?.seconds ?? 10);
-    if (!this.active || this.busy) throw new Error('No load test running.');
+    if (!this.active || this.busy) throw new LocalizedError('No load test running.');
     this.busy = true; this.changed();
     try {
       await this.request('sender', `LAB RATE ${this.session.id} ${chosen.rate}`, 'rate', this.session.id);
       this.session.rate = chosen.rate;
-      this.message = 'New target rate acknowledged; the original test duration is unchanged.';
-    } catch (error) { this.message = error.message; throw error; }
+      this.message = message('New target rate acknowledged; the original test duration is unchanged.');
+    } catch (error) { this.message = errorMessage(error); throw error; }
     finally { this.busy = false; this.changed(); }
   }
   async stop() {
-    if (!this.boards.sender.connected) throw new Error('Sender not connected.');
+    if (!this.boards.sender.connected) throw new LocalizedError('Sender not connected.');
     this.epoch++;
     // STOP stays available even if another command is awaiting a reply.
     this.recovery = null;
-    this.message = 'Requesting stop …'; this.changed();
+    this.message = message('Requesting stop …'); this.changed();
     try {
       await this.request('sender', 'LAB STOP', 'stop');
-      this.active = false; this.message = 'Sender acknowledged stop. Final reception measurements are still arriving.';
-    } catch (error) { this.message = 'Stop not acknowledged. The firmware ends the test no later than the selected duration.'; throw error; }
+      this.active = false; this.message = message('Sender acknowledged stop. Final reception measurements are still arriving.');
+    } catch (error) { this.message = message('Stop not acknowledged. The firmware ends the test no later than the selected duration.'); throw error; }
     finally { this.changed(); }
   }
 }

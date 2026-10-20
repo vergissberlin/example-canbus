@@ -1,3 +1,4 @@
+import { message, t, translate, onLanguageChange } from './i18n.mjs';
 const BOARDS = ['sender', 'receiver'];
 const isBoard = source => BOARDS.includes(source);
 
@@ -19,6 +20,10 @@ export class CommunicationView {
     this.pulses = new Map();
     this.boards = new Map(BOARDS.map(name => [name, { connected: false, error: false, status: 'Not connected' }]));
     this.lastFrame = null;
+    onLanguageChange(() => {
+      for (const name of BOARDS) this.renderBoard(name);
+      this.renderFrame();
+    });
   }
 
   attach(root) {
@@ -91,7 +96,7 @@ export class CommunicationView {
     node?.classList.toggle('is-connected', board.connected);
     node?.classList.toggle('has-error', board.error);
     const label = this.root?.querySelector(`[data-node-status="${source}"]`);
-    if (label) { label.textContent = board.status; label.setAttribute('fill', board.error ? '#c44836' : '#617167'); }
+    if (label) { label.textContent = t(board.status); label.setAttribute('fill', board.error ? '#c44836' : '#617167'); }
   }
 
   renderFrame() {
@@ -100,7 +105,7 @@ export class CommunicationView {
     if (!this.lastFrame) return;
     const { id, counter, source, time } = this.lastFrame;
     if (label) label.textContent = `RX 0x${id.toString(16).toUpperCase().padStart(3, '0')}${counter === null ? '' : ` · #${counter}`}`;
-    if (age) age.textContent = `${source === 'sender' ? 'Sender' : 'Receiver'} · ${Math.max(0, Math.floor((this.now() - time) / 1000))} s ago`;
+    if (age) age.textContent = t('{role} · {age} s ago', { role: message(source === 'sender' ? 'Sender' : 'Receiver'), age: Math.max(0, Math.floor((this.now() - time) / 1000)) });
   }
 }
 
@@ -113,10 +118,13 @@ export async function loadCommunication(host, view, fetchSvg = fetch) {
     // This is a bundled, same-origin asset; serial log text never becomes markup.
     const root = document.importNode(parsed.documentElement, true);
     host.replaceChildren(root);
+    translate(root);
     view.attach(root);
     return true;
   } catch {
-    host.textContent = 'Could not load the signal diagram. The WebSerial console below still works.';
+    const renderFailure = () => { host.textContent = t('Could not load the signal diagram. The WebSerial console below still works.'); };
+    renderFailure();
+    onLanguageChange(renderFailure);
     host.classList.add('diagram-unavailable');
     return false;
   }
