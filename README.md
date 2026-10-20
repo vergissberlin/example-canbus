@@ -27,6 +27,15 @@ Bus zwischen den Modulen: `CANH-CANH`, `CANL-CANL`, `GND-GND`.
 
 [SVG herunterladen](docs/canbus-breadboard.svg) · [PNG-Vorschau](docs/canbus-breadboard.png)
 
+[Interaktiven Breadboard-Plan in Wokwi öffnen](https://wokwi.com/projects/478383260674919425)
+
+Der Wokwi-Plan zeigt den Normalbetrieb mit beiden ESPs und CAN-Modulen auf
+Breadboards sowie farbigen Steckbrücken. Die virtuellen ESP32-C3-DevKit-Boards
+ersetzen dort die SuperMini-Darstellung: reale Pinpositionen und Lochreihen
+weichen ab. Nach GPIO-Nummern und Modulbeschriftungen verbinden. Der Plan
+ist eine Verdrahtungshilfe, keine elektrische CAN-Simulation. Im Normalbetrieb
+darf keine CTX-GND-Testbrücke gesteckt sein.
+
 Die Zeichnung zeigt beide ESPs mit separater USB-Versorgung. Bauteile und
 Pinpositionen sind schematisch: beim Stecken nach den Beschriftungen am echten
 Board gehen. Jeder CAN-Transceiver wird vom zugehörigen ESP mit 3,3 V versorgt.
@@ -40,12 +49,43 @@ Modul-Abschlusswiderstände mitzählen und nicht zusätzlich bestücken.
            GND  ------------------- GND
 ```
 
+### Verifizierter Hardware-Test vom 20. Oktober 2026
+
+Getestet wurden zwei ESP32-C3 SuperMini mit je einem WCMCU-230, beide ESPs
+mit eigener USB-Versorgung und ohne 5V-Brücke. Je Modul: ESP-3V3 an 3V3,
+ESP-GND an GND, GPIO 5 an CTX und GPIO 4 an CRX. Zwischen den Modulen sind
+CANH mit CANH, CANL mit CANL und GND mit GND verbunden. Beide vorhandenen
+120-Ohm-Modulabschlüsse bleiben bestückt; keine zusätzlichen Abschlüsse.
+
+| Prüfung | Ergebnis |
+|---|---|
+| Gezielte Einzelübertragung bei 500 kbit/s | In beiden Richtungen empfangen und mit ACK bestätigt; Fehlerzähler null |
+| Gezielte Einzelübertragung bei 125 kbit/s | In beiden Richtungen empfangen und mit ACK bestätigt; Fehlerzähler null |
+| Normalbetrieb bei 500 kbit/s | 23 Frames in Folge im Receiver, Zähler 13 bis 35 ohne Lücken, 23 ACK-Meldungen, keine beobachteten Busfehler |
+
+Nach den Tests wurden die normalen Sender- und Receiver-Programme mit
+500 kbit/s wieder aufgespielt. Die Beobachtung über etwa 23 Sekunden ist ein
+Funktionstest und kein Nachweis langfristiger Störungsfreiheit. Die Prüfung
+bei 125 kbit/s war ein Einzeltest in jede Richtung, kein Dauerlauf.
+
+Während der Fehlersuche wurde eine fehlende Masseverbindung entdeckt. Frühere
+fehlgeschlagene Versuche beweisen deshalb keinen Moduldefekt. Auch der manuelle
+Dauertest mit CTX an GND ist hier kein zuverlässiger Defektnachweis: Trotz
+fehlender dauerhafter Busdifferenz wurden kurze Impulse zurückgemeldet und
+CAN-Frames erfolgreich übertragen. Der RX-Pegel kehrte bei GPIO-Abtastungen
+zwischen etwa 100 und 300 Mikrosekunden auf High zurück, obwohl TX Low blieb;
+die Ursache dieses Verhaltens wurde nicht abschließend bestimmt.
+
 ### Stromversorgung
+- Verifizierter Aufbau: beide ESPs separat per USB versorgen, keine 5V-Brücke.
 - Optional: nur Board #1 per USB, 5V und GND zu Board #2 bruecken.
 - Beim Flashen die 5V-Bruecke loesen (Rueckspeisung vermeiden).
 - Niemals 3V3 mit 3V3 verbinden. WCMCU-230 nie an 5 V.
 
 ## Debuggen im Browser (ohne Arduino IDE)
+
+[CAN/LAB online öffnen](https://vergissberlin.github.io/example-canbus/debug/)
+
 
 Die lokale [CAN/LAB-Konsole](debug/index.html) liest die USB-Ausgabe der bereits
 geflashten Sketches. Sie kann beide Boards gleichzeitig öffnen, RX-Zähler und
