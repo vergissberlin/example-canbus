@@ -1,0 +1,55 @@
+name: Publish CAN LAB
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'debug/**'
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify parsers and signal visualization
+        run: node --test debug/*.test.mjs
+      - uses: actions/configure-pages@v5
+      - name: Prepare static site
+        run: |
+          mkdir -p _site/debug _site/docs
+          cp debug/index.html debug/style.css debug/app.mjs debug/protocol.mjs debug/communication.mjs _site/debug/
+          cp docs/canbus-breadboard.svg docs/canbus-communication.svg _site/docs/
+          python3 - <<'PY'
+          from pathlib import Path
+          Path('_site/index.html').write_text('<!doctype html><html lang="de"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=debug/"><title>CAN / LAB</title><a href="debug/">CAN / LAB Debug-Konsole öffnen</a></html>', encoding='utf-8')
+          PY
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish static site
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,8 +1,12 @@
 import { parseLine, counterGap, LineBuffer } from './protocol.mjs';
+import { CommunicationView, loadCommunication } from './communication.mjs';
 
 const $ = selector => document.querySelector(selector);
 const MAX_LINES = 2000;
 const devices = new Map();
+const communication = new CommunicationView();
+// Loading the optional drawing must never block USB initialization.
+void loadCommunication(document.querySelector('#communication-diagram'), communication);
 let logs = [], paused = false, dirty = true;
 let rxCount = 0, gapCount = 0, latestCounter = null, lastRx = 0;
 const supported = 'serial' in navigator && window.isSecureContext;
@@ -13,6 +17,7 @@ function log(source, message, kind = null) {
   logs.push({ time: new Date(), source, message, kind: kind || parsed.kind });
   if (logs.length > MAX_LINES) logs.splice(0, logs.length - MAX_LINES);
   const device = devices.get(source);
+  if (device) communication.event(source, kind ? { kind } : parsed);
   if (device && parsed.kind === 'rx') {
     device.lastRx = Date.now();
     lastRx = device.lastRx;
@@ -27,6 +32,8 @@ function log(source, message, kind = null) {
 }
 
 function updateDevice(device, state) {
+  if (state === 'connected') communication.connection(device.name, true);
+  else if (state === 'idle' || state === 'closing') communication.connection(device.name, false);
   device.card.classList.toggle('connected', state === 'connected');
   device.card.querySelector('.device-state').textContent = {
     idle: 'Nicht verbunden', connecting: 'Port auswählen / verbinden …',
@@ -81,6 +88,7 @@ async function read(device) {
         while (!device.stopping) {
           const { value, done } = await reader.read();
           if (done) break;
+          if (value?.byteLength) communication.event(device.name, { kind: 'usb' });
           for (const line of lines.push(decoder.decode(value, { stream: true }))) log(device.name, line);
         }
       } catch (error) {
@@ -159,6 +167,7 @@ function render() {
 }
 
 function metrics() {
+  communication.renderFrame();
   $('#rx-count').textContent = rxCount.toLocaleString('de-DE');
   $('#counter').textContent = latestCounter === null ? '—' : latestCounter.toLocaleString('de-DE');
   $('#gaps').textContent = gapCount.toLocaleString('de-DE');
