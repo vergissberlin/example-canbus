@@ -367,12 +367,6 @@ text{font-family:'Avenir Next',Avenir,'Segoe UI',sans-serif}.pin{font-family:mon
 <text x="720" y="274" fill="#3a4858" font-size="13" text-anchor="middle" font-weight="700" >GND</text>
 <circle cx="600" cy="280" r="4" fill="#3a4858" stroke="#fff"/>
 <circle cx="840" cy="280" r="4" fill="#3a4858" stroke="#fff"/>
-<path d="M 625 177 V 192 M 625 212 V 227" stroke="#997e5b" stroke-width="2"/>
-<rect x="620" y="192" width="10" height="20" rx="2" fill="#e3c59b" stroke="#997e5b" />
-<text x="625" y="154" fill="#617167" font-size="11" text-anchor="middle" font-weight="400" >120 Ω</text>
-<path d="M 815 177 V 192 M 815 212 V 227" stroke="#997e5b" stroke-width="2"/>
-<rect x="810" y="192" width="10" height="20" rx="2" fill="#e3c59b" stroke="#997e5b" />
-<text x="815" y="154" fill="#617167" font-size="11" text-anchor="middle" font-weight="400" >120 Ω</text>
 <text x="720" y="318" fill="#25364a" font-size="14" text-anchor="middle" font-weight="700" >500 kbit/s</text>
 <text x="720" y="353" fill="#25364a" font-size="15" text-anchor="middle" font-weight="700" data-last-frame="">No RX frame yet</text>
 <text x="720" y="379" fill="#617167" font-size="12" text-anchor="middle" font-weight="400" data-frame-age="">Waiting for CAN reception</text>

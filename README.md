@@ -8,7 +8,7 @@ The ESP32-C3 includes the CAN controller (TWAI); the WCMCU-230 only converts the
 ## Hardware
 
 - 2x ESP32-C3 SuperMini (solder the pin headers)
-- 2x WCMCU-230 (3.3 V, usually with 120-ohm termination already fitted)
+- 2x WCMCU-230 (3.3 V, built-in bus termination)
 - Breadboard, jumper wires
 
 ## Wiring (identical on both sides)
@@ -40,8 +40,8 @@ normal operation.
 The drawing shows both ESPs with separate USB power supplies. Components and
 pin positions are schematic: follow the labels on the actual board when wiring.
 Each CAN transceiver is powered at 3.3 V by its own ESP.
-Each bus end requires 120 ohms between CANH and CANL; count any termination
-resistors already fitted to the modules and do not add duplicates.
+The WCMCU-230 modules used here already include bus termination.
+No additional external resistors are needed.
 
 ```
  C3 #1 -- WCMCU #1                 WCMCU #2 -- C3 #2
@@ -55,8 +55,8 @@ resistors already fitted to the modules and do not add duplicates.
 Two ESP32-C3 SuperMini boards, each with a WCMCU-230, were tested with separate
 USB power supplies and no 5V jumper. For each module: ESP-3V3 to 3V3,
 ESP-GND to GND, GPIO 5 to CTX and GPIO 4 to CRX. Between the modules,
-CANH connects to CANH, CANL to CANL and GND to GND. Both existing
-120-ohm module terminations remain fitted; no additional terminations.
+CANH connects to CANH, CANL to CANL and GND to GND. The built-in module
+terminations remain fitted; no additional external resistors are needed.
 
 | Check | Result |
 |---|---|
