@@ -153,8 +153,14 @@ umgestellt. Die Zielrate ist angebotene Last und kann die Buskapazität überste
   TWAI-Fehlerzähler relativ zum Beginn dieses Tests. Sie sind keine Messung
   der elektrischen Busauslastung und keine automatische Verlustquote.
 
-Die Kurve zeigt die letzten dreißig Receiver-Statusberichte; die gestrichelte
-Linie zeigt die aktuelle Zielrate. Alte Messwerte bleiben nach Testende sichtbar.
+Das Zeitdiagramm zeigt die letzten 60 Sekunden auf einer Sekundenachse: blau
+und gestrichelt die zum Senden eingereihten Frames/s, grün die tatsächlich
+empfangenen Frames/s. TX ist keine Bestätigung einer erfolgreichen Übertragung.
+Die Punkte zeigen die ungefähr einsekündigen Firmware-Messfenster an ihrer
+Geräte-Laufzeit; es werden keine exakten Sekundenzählungen oder fehlenden Werte
+interpoliert. Größere Berichtslücken unterbrechen die Linie. Über einem Punkt
+stehen Messzeit und Rate. Der Regler arbeitet in Fünferschritten (5–20.000);
+1 Frame/s bleibt über die Vorgabe und das Zahlenfeld einstellbar. Alte Messwerte bleiben nach Testende sichtbar.
 Bei einem neuen Test werden sie zurückgesetzt. Bei mehr als drei Sekunden ohne
 neuen Bericht wird die Anzeige als veraltet gekennzeichnet. Konsole pausieren
 oder filtern beeinflusst weder Messwerte noch Steuerbefehle.
@@ -185,7 +191,7 @@ Nur in diesem getrennten Breadboard-Versuchsaufbau verwenden.
 
 **Prüfstand:** JavaScript-Protokoll- und Zustandstests, native C++-Tests des
 Befehlsparsers und der Taktung sowie beide PlatformIO-Builds sind lokal geprüft.
-Alle 27 JavaScript-Tests und 16 Browser-Integrationstests bestehen; auch der
+Alle 29 JavaScript-Tests und 18 Browser-Integrationstests bestehen; auch der
 native C++-Test und beide PlatformIO-Builds sind erfolgreich. Die Browser-
 Prüfseite verwendet ausdrücklich simulierte USB-Ports. Für diese
 neue Lasttest-Firmware steht die Hardware-Abnahme mit einstellbarer Rate noch

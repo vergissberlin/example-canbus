@@ -40,7 +40,7 @@ function bootstrap(options) {
 }
 
 async function fixture(options = {}) {
-  const html = await (await fetch('./index.html')).text();
+  const html = await (await fetch('./index.html?v=timeline1', {cache:'no-store'})).text();
   const iframe = document.createElement('iframe');
   iframe.title = 'Simulierte CAN/LAB-Konsole'; iframe.style.width = '1160px';
   const base = new URL('./', location.href).href;
@@ -175,6 +175,20 @@ async function run() {
     assert(load.doc.querySelector('#rx-count').textContent === '90', `Doppelte Summierung: ${load.doc.querySelector('#rx-count').textContent}`);
     assert(load.doc.querySelector('#load-rejected').textContent === '10', 'Queue-Rückweisungen fehlen');
     assert(load.doc.querySelector('#load-gaps').textContent === '0', 'Queue-Rückweisungen als RX-Verlust gezählt');
+  });
+  await check('Zeitdiagramm zeigt getrennte TX/RX-Punkte trotz pausierter Konsole', async () => {
+    assert(load.doc.querySelector('#load-tx-line').getAttribute('d').startsWith('M'), 'TX-Kurve fehlt');
+    assert(load.doc.querySelector('#load-rx-line').getAttribute('d').startsWith('M'), 'RX-Kurve fehlt');
+    assert(load.doc.querySelectorAll('#load-chart-points circle').length === 2, 'Doppelte oder fehlende Punkte');
+    assert(load.doc.querySelector('[data-chart-second="60"]').textContent === '60 s', 'Sekundenachse fehlt');
+  });
+  await check('Regler bewegt sich in Fünferschritten, Vorgabe 1 bleibt verfügbar', async () => {
+    const slider=load.doc.querySelector('#load-slider');
+    assert(slider.min === '5' && slider.step === '5', 'Regler nicht auf Vielfache von fünf gesetzt');
+    slider.value='105'; slider.dispatchEvent(new Event('input', {bubbles:true}));
+    assert(load.doc.querySelector('#load-rate').value === '105', 'Regler nicht synchronisiert');
+    load.click('[data-load-rate="1"]');
+    assert(load.doc.querySelector('#load-rate').value === '1', 'Ein Frame/s nicht mehr möglich');
   });
   await check('Lasttest: neue Rate wird bestätigt, Stopp bleibt bedienbar', async () => {
     load.click('[data-load-rate="5000"]'); load.click('#load-rate-apply');

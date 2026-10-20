@@ -1,6 +1,6 @@
 import { parseLine, counterGap, LineBuffer } from './protocol.mjs';
 import { CommunicationView, loadCommunication } from './communication.mjs';
-import { LoadTest, parseLabLine } from './load-test.mjs';
+import { LoadTest, parseLabLine, timeline } from './load-test.mjs?v=timeline1';
 
 const $ = selector => document.querySelector(selector);
 const MAX_LINES = 2000;
@@ -183,10 +183,27 @@ function renderLoad() {
   $('#load-elapsed').textContent = tx ? `${(tx.elapsed_ms / 1000).toFixed(1)} / ${session.seconds} s` : 'Noch kein Lasttest';
   $('#load-freshness').textContent = session?.updated && Date.now() - session.updated > 3000
     ? 'Statusbericht älter als drei Sekunden; die zuletzt gemessene Rate bleibt angezeigt.' : 'Messfenster der Firmware · etwa ein Statusbericht pro Sekunde';
-  const samples = session?.samples ?? [], maximum = Math.max(session?.rate || 1, ...samples.map(s => s.fps));
-  $('#load-rx-line').setAttribute('points', samples.map((s, i) => `${20 + i * 600 / 29},${90 - s.fps / maximum * 75}`).join(' '));
-  const y = 90 - (session?.rate || 1) / maximum * 75;
-  $('#load-target-line').setAttribute('d', session ? `M20 ${y}H620` : '');
+  const chart = timeline(session?.samples);
+  $('#load-tx-line').setAttribute('d', chart.paths.sender);
+  $('#load-rx-line').setAttribute('d', chart.paths.receiver);
+  $('#load-chart-max').textContent = chart.maximum.toLocaleString('de-DE');
+  for (const label of document.querySelectorAll('[data-chart-second]')) {
+    label.textContent = `${Math.round(chart.start / 1000) + Number(label.dataset.chartSecond)} s`;
+  }
+  // SVG titles make each measured window inspectable without interpolating missing data.
+  const dots = $('#load-chart-points');
+  const signature = JSON.stringify(chart.points);
+  if (dots.dataset.samples !== signature) {
+    dots.dataset.samples = signature;
+    dots.replaceChildren(...chart.points.map(point => {
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', point.x); dot.setAttribute('cy', point.y); dot.setAttribute('r', '3');
+      dot.setAttribute('class', point.role === 'sender' ? 'load-tx-dot' : 'load-rx-dot');
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${(point.elapsed / 1000).toFixed(2)} s · ${point.role === 'sender' ? 'TX eingereiht' : 'RX empfangen'}: ${point.fps.toLocaleString('de-DE')} Frames/s`;
+      dot.append(title); return dot;
+    }));
+  }
 }
 
 for (const id of ['load-rate', 'load-slider']) $('#' + id).addEventListener('input', event => {

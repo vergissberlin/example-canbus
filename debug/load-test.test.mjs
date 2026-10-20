@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { settings, parseLabLine, LoadTest } from './load-test.mjs';
+import { settings, parseLabLine, LoadTest, timeline } from './load-test.mjs';
 const hello = role => parseLabLine(`LAB HELLO role=${role} version=1 bitrate=500000 max_rate=20000 max_seconds=60`);
 const tx = (id, extra = '') => parseLabLine(`LAB STATS role=sender test=${id} running=1 target=1000 queued=1000 queued_fps=1000 rejected=10 skipped=0 cancelled=0 pending=3 failed=0 errors=0 tec=0 rec=0 state=1 elapsed_ms=1000${extra}`);
 const rx = id => parseLabLine(`LAB STATS role=receiver test=${id} rx=997 rx_fps=997 counter=996 gaps=0 duplicates=0 missed=0 overrun=0 errors=0 tec=0 rec=0 state=1 elapsed_ms=1000`);
@@ -94,4 +94,37 @@ test('STOP during startup cancels the sequence before ARM or START can be issued
   h.controller.accept('sender', { type: 'ack', role: 'sender', command: 'stop', test: 0 });
   await stop; await rejected;
   assert(!h.commands.some(x => /LAB (ARM|START)/.test(x.command)));
+});
+
+test('timeline places both series by device seconds and leaves missing reports disconnected', () => {
+  const chart = timeline([
+    {role: 'sender', elapsed: 1000, fps: 100},
+    {role: 'receiver', elapsed: 1000, fps: 90},
+    {role: 'sender', elapsed: 2000, fps: 110},
+    {role: 'sender', elapsed: 5000, fps: 0}
+  ]);
+  assert.equal(chart.end - chart.start, 60000);
+  assert.equal(chart.maximum, 110);
+  assert.equal(chart.points[0].x, chart.points[1].x);
+  assert.ok(chart.points[2].x - chart.points[0].x < 10, 'One second must occupy 1/60 of the axis');
+  assert.equal(chart.paths.sender.split('M').length - 1, 2);
+  assert.match(chart.paths.receiver, /^M/);
+  assert.equal(timeline([{role:'sender', elapsed:1000, fps:1}]).paths.receiver, '');
+});
+test('history retains sixty seconds, ignores duplicates and frozen sender timestamps', async () => {
+  const {controller:c} = harness(); await c.start(1000,60);
+  for (let second=0;second<=65;second++) {
+    c.accept('sender', {...tx(101), elapsed_ms:second*1000});
+    c.accept('receiver', {...rx(101), elapsed_ms:second*1000});
+  }
+  assert.equal(c.session.samples.length,122);
+  const before=c.session.samples.length;
+  c.accept('sender', {...tx(101), elapsed_ms:65000});
+  c.accept('sender', {...tx(101), elapsed_ms:64000});
+  assert.equal(c.session.samples.length,before);
+  const chart=timeline(c.session.samples);
+  assert.equal(chart.start,5000); assert.equal(chart.end,65000);
+  assert.equal(chart.points[0].x,58);
+  await c.stop(); await c.start(1000,10);
+  assert.deepEqual(c.session.samples,[]);
 });

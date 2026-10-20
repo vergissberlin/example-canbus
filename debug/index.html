@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>CAN / LAB — USB Debug-Konsole</title>
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="app.mjs"></script>
+  <link rel="stylesheet" href="style.css?v=timeline1">
+  <script type="module" src="app.mjs?v=timeline1"></script>
 </head>
 <body>
   <header><a class="wordmark" href="./">CAN<span>/</span>LAB</a><span class="edition">ESP32-C3 · USB DEBUGGER</span><span class="local">● USB-DATEN BLEIBEN LOKAL</span></header>
@@ -28,14 +28,21 @@
         <div class="load-controls">
           <label for="load-rate">Zielrate <span>Frames pro Sekunde</span></label>
           <input id="load-rate" type="number" min="1" max="20000" step="1" value="100" inputmode="numeric">
-          <label class="sr-only" for="load-slider">Zielrate per Schieberegler</label><input id="load-slider" type="range" min="1" max="20000" step="1" value="100">
+          <label class="sr-only" for="load-slider">Zielrate per Schieberegler</label><input id="load-slider" type="range" min="5" max="20000" step="5" value="100">
           <div class="load-presets" aria-label="Framerate-Vorgaben"><button data-load-rate="1">1</button><button data-load-rate="100">100</button><button data-load-rate="1000">1.000</button><button data-load-rate="5000">5.000</button><button data-load-rate="10000">10.000</button><button data-load-rate="20000">20.000</button></div>
           <label for="load-duration">Dauer <span>maximal 60 Sekunden</span></label><div class="load-duration"><input id="load-duration" type="number" min="1" max="60" step="1" value="10" inputmode="numeric"><span>Sekunden</span></div>
           <div class="load-actions"><button id="load-start" class="primary" disabled>Test starten ↗</button><button id="load-stop" class="load-stop" disabled>Stopp</button><button id="load-rate-apply" disabled>Rate übernehmen</button></div>
         </div>
         <div class="load-results">
           <div class="load-rates"><div><span>ZIEL / FPS</span><strong id="load-target">—</strong></div><div class="measured"><span>EMPFANGEN / FPS</span><strong id="load-actual">—</strong></div><div><span>EINGEREIHT / FPS</span><strong id="load-queued-rate">—</strong></div></div>
-          <svg class="load-chart" viewBox="0 0 640 110" role="img" aria-label="Empfangsrate der letzten dreißig Statusberichte; gestrichelt die aktuelle Zielrate"><path d="M20 90H620" class="load-axis"/><path id="load-target-line" class="load-target-line"/><polyline id="load-rx-line" class="load-rx-line" points=""/></svg>
+          <div class="load-chart-legend"><span class="tx-key">TX eingereiht</span><span class="rx-key">RX empfangen</span><span>Letzte 60 Sekunden</span></div>
+          <svg class="load-chart" viewBox="0 0 640 195" role="img" aria-labelledby="load-chart-title load-chart-desc">
+            <title id="load-chart-title">Sende- und Empfangsrate im Zeitverlauf</title><desc id="load-chart-desc">60 Sekunden mit Sekundenachse. Blau: zum Senden eingereiht, grün: tatsächlich empfangen. Firmware-Messfenster von ungefähr einer Sekunde; fehlende Berichte bleiben Lücken. Punkt berühren für Messzeit und Rate.</desc>
+            <path d="M58 30H620 M58 95H620 M58 160H620 M58 30V160" class="load-axis"/>
+            <text x="58" y="15" class="load-chart-label">Frames/s</text><text id="load-chart-max" x="50" y="34" text-anchor="end" class="load-chart-label">1</text><text x="50" y="164" text-anchor="end" class="load-chart-label">0</text>
+            <g class="load-chart-label" text-anchor="middle"><text x="58" y="185" data-chart-second="0">0 s</text><text x="152" y="185" data-chart-second="10">10 s</text><text x="245" y="185" data-chart-second="20">20 s</text><text x="339" y="185" data-chart-second="30">30 s</text><text x="433" y="185" data-chart-second="40">40 s</text><text x="526" y="185" data-chart-second="50">50 s</text><text x="620" y="185" data-chart-second="60">60 s</text></g>
+            <path id="load-tx-line" class="load-tx-line"/><path id="load-rx-line" class="load-rx-line"/><g id="load-chart-points"/>
+          </svg>
           <p id="load-freshness" class="load-freshness">Messfenster der Firmware · etwa ein Statusbericht pro Sekunde</p>
           <dl class="load-counters"><div><dt>Eingereiht</dt><dd id="load-queued">—</dd></div><div><dt>Empfangen</dt><dd id="load-rx-total">—</dd></div><div><dt>TX-Queue voll / abgelehnt</dt><dd id="load-rejected">—</dd></div><div><dt>Zählerlücken</dt><dd id="load-gaps">—</dd></div><div><dt>Scheduler ausgelassen</dt><dd id="load-skipped">—</dd></div><div><dt>TX noch offen</dt><dd id="load-pending">—</dd></div><div><dt>RX-Queue voll / HW-Overrun</dt><dd id="load-missed">—</dd></div><div><dt>Busfehler Sender / Receiver</dt><dd id="load-errors">—</dd></div></dl>
         </div>

@@ -92,12 +92,13 @@ export class LoadTest {
       if (event.type === 'stats') {
         this.session[role === 'sender' ? 'tx' : 'rx'] = event;
         this.session.updated = this.now();
-        if (role === 'receiver') {
-          const samples = this.session.samples;
-          if (!samples.length || samples.at(-1).elapsed !== event.elapsed_ms) {
-            samples.push({ elapsed: event.elapsed_ms, fps: event.rx_fps });
-            if (samples.length > 30) samples.shift();
-          }
+        const samples = this.session.samples;
+        // Ignore zero-length startup windows, duplicates and frozen sender timestamps after STOP.
+        const previous = samples.findLast(sample => sample.role === role);
+        if (event.elapsed_ms > (previous?.elapsed ?? 0)) {
+          samples.push({ role, elapsed: event.elapsed_ms, fps: role === 'sender' ? event.queued_fps : event.rx_fps });
+          const cutoff = Math.max(...samples.map(sample => sample.elapsed)) - 60000;
+          this.session.samples = samples.filter(sample => sample.elapsed >= cutoff);
         }
       }
       if (event.type === 'end') {
@@ -173,4 +174,24 @@ export class LoadTest {
     } catch (error) { this.message = 'Stopp nicht bestätigt. Die Firmware beendet den Test spätestens nach der gewählten Dauer.'; throw error; }
     finally { this.changed(); }
   }
+}
+
+// Device elapsed time, never USB arrival order, determines the horizontal position.
+export function timeline(samples = []) {
+  const end = Math.max(60000, ...samples.map(sample => sample.elapsed));
+  const start = end - 60000;
+  const visible = samples.filter(sample => sample.elapsed >= start && sample.elapsed <= end);
+  const maximum = Math.max(1, ...visible.map(sample => sample.fps));
+  const x = elapsed => 58 + (elapsed - start) / 60000 * 562;
+  const y = fps => 160 - fps / maximum * 130;
+  const paths = {};
+  for (const role of ROLES) {
+    let previous;
+    paths[role] = visible.filter(sample => sample.role === role).map(sample => {
+      const move = !previous || sample.elapsed - previous.elapsed > 1500;
+      previous = sample;
+      return `${move ? 'M' : 'L'}${x(sample.elapsed).toFixed(2)} ${y(sample.fps).toFixed(2)}${move ? 'h0' : ''}`;
+    }).join(' ');
+  }
+  return { start, end, maximum, paths, points: visible.map(sample => ({ ...sample, x: x(sample.elapsed), y: y(sample.fps) })) };
 }
