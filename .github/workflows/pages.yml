@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'index.html'
       - 'debug/**'
       - 'docs/**'
       - 'firmware/**'
@@ -36,10 +37,8 @@ jobs:
           mkdir -p _site/debug _site/docs
           cp debug/index.html debug/style.css debug/app.mjs debug/protocol.mjs debug/communication.mjs debug/load-test.mjs _site/debug/
           cp docs/canbus-breadboard.svg docs/canbus-communication.svg _site/docs/
-          python3 - <<'PY'
-          from pathlib import Path
-          Path('_site/index.html').write_text('<!doctype html><html lang="en"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=debug/"><title>CAN / LAB</title><a href="debug/">Open CAN / LAB Debug Console</a></html>', encoding='utf-8')
-          PY
+          cp docs/canlab-opengraph.png _site/docs/
+          cp index.html _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
