@@ -1,5 +1,5 @@
 import { parseLine, counterGap, LineBuffer } from './protocol.mjs';
-import { CommunicationView, loadCommunication } from './communication.mjs';
+import { CommunicationView, loadCommunication } from './communication.mjs?v=builtin-termination';
 import { LoadTest, parseLabLine, timeline, CHART_SERIES } from './load-test.mjs?v=diagnostics1';
 
 const $ = selector => document.querySelector(selector);

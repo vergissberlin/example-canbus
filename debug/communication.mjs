@@ -106,7 +106,7 @@ export class CommunicationView {
 
 export async function loadCommunication(host, view, fetchSvg = fetch) {
   try {
-    const response = await fetchSvg(new URL('../docs/canbus-communication.svg', import.meta.url));
+    const response = await fetchSvg(new URL('../docs/canbus-communication.svg?v=builtin-termination', import.meta.url));
     if (!response.ok) throw new Error(`SVG HTTP ${response.status}`);
     const parsed = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
     if (parsed.querySelector('parsererror') || parsed.documentElement.localName !== 'svg') throw new Error('Invalid SVG');
