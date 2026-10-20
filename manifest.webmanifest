@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "CAN/LAB — USB Debug Console",
+  "short_name": "CAN/LAB",
+  "description": "USB debugging and adjustable CAN load tests for ESP32-C3 boards, directly in your browser.",
+  "lang": "en",
+  "start_url": "./debug/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f2e9",
+  "theme_color": "#15271f",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    { "src": "pwa/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "pwa/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "pwa/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "pwa/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Export device assets and matching HTML metadata from pwa/logo.png.
+
+Requires ImageMagick 7 (magick). Run after changing the master logo.
+"""
+from pathlib import Path
+import subprocess
+
+ROOT = Path(__file__).resolve().parents[1]
+MASTER = ROOT / 'pwa/logo.png'
+ICONS = ROOT / 'pwa/icons'
+SPLASH = ROOT / 'pwa/splash'
+# Logical portrait width, height and pixel ratio: iPhone SE through current
+# Pro/Max/Air sizes, iPad mini, iPad, iPad Air, and 11/13-inch iPad Pro.
+SCREENS = [
+    (320, 568, 2), (375, 667, 2), (414, 736, 3),
+    (375, 812, 3), (414, 896, 2), (414, 896, 3),
+    (360, 780, 3), (390, 844, 3), (393, 852, 3),
+    (402, 874, 3), (420, 912, 3), (428, 926, 3),
+    (430, 932, 3), (440, 956, 3),
+    (768, 1024, 2), (810, 1080, 2), (820, 1180, 2),
+    (834, 1112, 2), (834, 1194, 2), (834, 1210, 2),
+    (744, 1133, 2), (1032, 1376, 2), (1024, 1366, 2),
+]
+
+def convert(*args):
+    args = list(map(str, args))
+    if args[-1].endswith('.png'):
+        args[-1:-1] = ['-dither', 'None', '-colors', '128', '-define', 'png:color-type=3', '-define', 'png:compression-level=9']
+    subprocess.run(['magick', *args], check=True)
+
+
+def generate():
+    ICONS.mkdir(parents=True, exist_ok=True)
+    SPLASH.mkdir(parents=True, exist_ok=True)
+    for size in [48, 72, 96, 128, 144, 152, 180, 192, 256, 384, 512, 1024]:
+        convert(MASTER, '-resize', f'{size}x{size}', '-strip', ICONS / f'icon-{size}.png')
+    for size in [192, 512]:
+        # The master symbol sits inside the central maskable safe zone.
+        convert(MASTER, '-resize', f'{size}x{size}', '-strip', ICONS / f'maskable-{size}.png')
+    for size in [152, 167, 180]:
+        convert(MASTER, '-resize', f'{size}x{size}', '-strip', ICONS / f'apple-touch-icon-{size}.png')
+    for size in [16, 32]:
+        convert(MASTER, '-resize', f'{size}x{size}', '-strip', ICONS / f'favicon-{size}.png')
+    convert(MASTER, '-define', 'icon:auto-resize=48,32,16', ICONS / 'favicon.ico')
+    for size in [70, 150, 310]:
+        convert(MASTER, '-resize', f'{size}x{size}', '-strip', ICONS / f'tile-{size}.png')
+    convert('-size', '310x150', 'xc:#15271f', '(', MASTER, '-resize', '150x150', ')',
+            '-gravity', 'center', '-composite', '-strip', ICONS / 'tile-310x150.png')
+    for width, height, ratio in SCREENS:
+        for orientation in ['portrait', 'landscape']:
+            w, h = (width * ratio, height * ratio) if orientation == 'portrait' else (height * ratio, width * ratio)
+            unit = min(w, h)
+            icon = round(unit * .30)
+            convert('-size', f'{w}x{h}', 'xc:#f3f2e9',
+                    '(', MASTER, '-resize', f'{icon}x{icon}', ')',
+                    '-gravity', 'center', '-geometry', f'+0-{round(unit * .08)}', '-composite',
+                    '-font', 'DejaVu-Sans-Bold', '-pointsize', round(unit * .055),
+                    '-fill', '#15271f', '-gravity', 'center', '-annotate', f'+0+{round(unit * .13)}', 'CAN/LAB',
+                    '-font', 'DejaVu-Sans', '-pointsize', round(unit * .024),
+                    '-fill', '#617167', '-annotate', f'+0+{round(unit * .20)}', 'Two nodes. One bus.',
+                    '-strip', SPLASH / f'apple-splash-{w}x{h}.png')
+    for name, prefix in [('index.html', './'), ('debug/index.html', '../')]:
+        tags = [
+            f'  <link rel="manifest" href="{prefix}manifest.webmanifest">',
+            '  <meta name="theme-color" content="#15271f">',
+            '  <meta name="mobile-web-app-capable" content="yes">',
+            '  <meta name="apple-mobile-web-app-capable" content="yes">',
+            '  <meta name="apple-mobile-web-app-title" content="CAN/LAB">',
+            '  <meta name="apple-mobile-web-app-status-bar-style" content="default">',
+            f'  <meta name="msapplication-config" content="{prefix}browserconfig.xml">',
+            '  <meta name="msapplication-TileColor" content="#15271f">',
+            f'  <link rel="icon" href="{prefix}pwa/icons/favicon.ico" sizes="any">',
+        ]
+        for size in [16, 32]:
+            tags.append(f'  <link rel="icon" type="image/png" sizes="{size}x{size}" href="{prefix}pwa/icons/favicon-{size}.png">')
+        for size in [152, 167, 180]:
+            tags.append(f'  <link rel="apple-touch-icon" sizes="{size}x{size}" href="{prefix}pwa/icons/apple-touch-icon-{size}.png">')
+        for width, height, ratio in SCREENS:
+            for orientation in ['portrait', 'landscape']:
+                w, h = (width * ratio, height * ratio) if orientation == 'portrait' else (height * ratio, width * ratio)
+                media = f'(device-width: {width}px) and (device-height: {height}px) and (-webkit-device-pixel-ratio: {ratio}) and (orientation: {orientation})'
+                tags.append(f'  <link rel="apple-touch-startup-image" href="{prefix}pwa/splash/apple-splash-{w}x{h}.png" media="{media}">')
+        start, end = '  <!-- PWA metadata: generated by scripts/generate_pwa_assets.py -->', '  <!-- End PWA metadata -->'
+        block = start + '\n' + '\n'.join(tags) + '\n' + end
+        path = ROOT / name
+        text = path.read_text()
+        if start in text:
+            before, remainder = text.split(start, 1)
+            text = before + block + remainder.split(end, 1)[1]
+        else:
+            text = text.replace('</head>', block + '\n</head>')
+        path.write_text(text)
+    print(f'Generated icons and {len(SCREENS) * 2} device splash screens; updated both HTML heads.')
+
+if __name__ == '__main__':
+    generate()

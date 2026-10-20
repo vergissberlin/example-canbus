@@ -116,6 +116,37 @@ connections and resets logs and measurements. Counter gaps can also result
 from missing USB log lines and do not prove CAN packet loss.
 Stop the server with `Ctrl+C`.
 
+### Install as a PWA
+
+CAN/LAB can be installed from the [GitHub Page](https://vergissberlin.github.io/example-canbus/debug/).
+In Chrome or Edge on a supported desktop or Android device, use the browser's
+**Install app** action. On iPhone or iPad, open the page in Safari and choose
+**Share → Add to Home Screen**. The app opens in its own window with a matching
+icon and startup screen.
+
+After the first successful online visit, the console, control logic and wiring
+diagrams remain available offline. USB connections and recorded logs stay in the
+current browser session and are not stored in the offline cache. Close all app
+windows and tabs, then reopen the app to activate a downloaded service-worker
+update; an active USB session is never reloaded automatically.
+
+Installation does not add Web Serial support to a browser. Safari on iOS/iPadOS
+can display the app and diagrams but cannot connect to these USB boards through
+Web Serial. Use a browser and operating system that support Web Serial for USB
+debugging and hardware load tests.
+
+The PWA includes regular and maskable Android/desktop icons, Apple touch icons,
+Windows tiles, favicons, and portrait/landscape Apple startup images for 23 phone
+and tablet screen profiles. Android and desktop browsers generate their launch
+screens from the manifest icon and colors.
+
+The master logo is `pwa/logo.png`. To regenerate all device images and their HTML
+links, run `python3 scripts/generate_pwa_assets.py` with ImageMagick 7 and the
+DejaVu Sans fonts installed. Build the deployable site with
+`python3 scripts/build_site.py`; output goes to the ignored `_site/` directory.
+The build versions the service-worker cache from the published files. GitHub
+Pages runs the same build automatically after relevant changes reach `main`.
+
 ### Adjustable CAN load test
 
 The **“How much gets through?”** panel controls the sender via Web Serial:
@@ -195,7 +226,7 @@ Use only in this isolated breadboard experiment.
 
 **Validation status:** JavaScript protocol and state tests, native C++ tests of
 the command parser and pacing, and both PlatformIO builds have been checked
-locally. All 30 JavaScript tests and 18 browser integration tests pass; the native
+locally. All 35 JavaScript tests and 18 browser integration tests pass; the native
 C++ test and both PlatformIO builds also succeed. The browser test page explicitly
 uses simulated USB ports. Hardware acceptance testing of the adjustable rate
 for this new load-test firmware is still pending, because no ESPs were connected
