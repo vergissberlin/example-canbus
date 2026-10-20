@@ -29,7 +29,7 @@ function fixture() {
   const expire = () => { const pending = [...timers.values()]; timers.clear(); for (const { fn } of pending) fn(); };
   return { view, root, timers, active, expire, advance: ms => time += ms };
 }
-const rx = parseLine('RX ID 0x123 DLC 4 Daten: 2A 00 00 00  (Zaehler=42)');
+const rx = parseLine('RX ID 0x123 DLC 4 Data: 2A 00 00 00  (Counter=42)');
 
 test('TX queue acknowledgement highlights only local CTX, never confirmed CAN reception', () => {
   const { view, active } = fixture();
@@ -53,7 +53,7 @@ test('USB chunks highlight only their own USB lead', () => {
 });
 test('waiting, invalid frames, and system messages do not animate CAN', () => {
   const { view, timers } = fixture();
-  for (const message of ['... warte auf Frames', 'RX ID 0x123 DLC 4 Daten: 01', 'Empfaenger bereit']) view.event('receiver', parseLine(message));
+  for (const message of ['... waiting for frames', 'RX ID 0x123 DLC 4 Data: 01', 'Receiver ready']) view.event('receiver', parseLine(message));
   view.event('system', rx);
   assert.equal(timers.size, 0);
 });
@@ -95,16 +95,16 @@ test('events before SVG load preserve last frame but do not replay animations', 
 });
 test('last frame age and non-counter IDs display correctly', () => {
   const { view, root, advance } = fixture();
-  view.event('receiver', parseLine('RX ID 0x456 DLC 1 Daten: FF'));
+  view.event('receiver', parseLine('RX ID 0x456 DLC 1 Data: FF'));
   assert.equal(root.querySelector('[data-last-frame]').textContent, 'RX 0x456');
   advance(2300); view.renderFrame();
-  assert.match(root.querySelector('[data-frame-age]').textContent, /Receiver · vor 2 s/);
+  assert.match(root.querySelector('[data-frame-age]').textContent, /Receiver · 2 s ago/);
 });
 test('missing SVG returns a visible fallback without throwing into WebSerial initialization', async () => {
   const host = { textContent: '', classList: { add() {} } };
   const view = new CommunicationView();
   assert.equal(await loadCommunication(host, view, async () => ({ ok: false, status: 404 })), false);
-  assert.match(host.textContent, /WebSerial-Konsole/);
+  assert.match(host.textContent, /WebSerial console/);
   assert.equal(await loadCommunication(host, view, async () => { throw new Error('offline'); }), false);
 });
 test('SVG defines every dynamic wire once and includes static supplies and reduced-motion fallback', () => {

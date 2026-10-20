@@ -100,9 +100,9 @@ void setup() {
   twai_timing_config_t t = TWAI_TIMING_CONFIG_500KBITS();
   twai_filter_config_t f = TWAI_FILTER_CONFIG_ACCEPT_ALL();
   if (twai_driver_install(&g, &t, &f) != ESP_OK || twai_start() != ESP_OK) {
-    Serial.println("TWAI-Start fehlgeschlagen"); while (true) delay(1000);
+    Serial.println("TWAI start failed"); while (true) delay(1000);
   }
-  Serial.println("Sender bereit"); hello(); lastReport = lastDemo = millis();
+  Serial.println("Sender ready"); hello(); lastReport = lastDemo = millis();
 }
 
 void loop() {
@@ -130,7 +130,7 @@ void loop() {
       twai_message_t msg = {}; msg.identifier = CAN_ID; msg.data_length_code = 4;
       memcpy(msg.data, &counter, 4);
       esp_err_t result = twai_transmit(&msg, 0);
-      Serial.printf("TX #%lu -> %s\n", (unsigned long)counter, result == ESP_OK ? "ok" : "FEHLER (Gegenstelle/Verkabelung?)");
+      Serial.printf("TX #%lu -> %s\n", (unsigned long)counter, result == ESP_OK ? "ok" : "ERROR (peer/wiring?)");
       if (result == ESP_OK) counter++;
     }
   }

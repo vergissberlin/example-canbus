@@ -40,17 +40,17 @@ function updateDevice(device, state) {
   else if (state === 'idle' || state === 'closing') { communication.connection(device.name, false); loadTest.connection(device.name, false); }
   device.card.classList.toggle('connected', state === 'connected');
   device.card.querySelector('.device-state').textContent = {
-    idle: 'Nicht verbunden', connecting: 'Port auswählen / verbinden …',
-    connected: 'USB verbunden', closing: 'Verbindung wird getrennt …'
+    idle: 'Not connected', connecting: 'Select port / connecting …',
+    connected: 'USB connected', closing: 'Disconnecting …'
   }[state];
   device.card.querySelector('.connect').disabled = !supported || state !== 'idle';
   device.card.querySelector('.disconnect').disabled = state !== 'connected';
 }
 
 function explainError(error) {
-  if (error.name === 'NotFoundError') return 'Port-Auswahl abgebrochen.';
-  if (error.name === 'SecurityError') return 'USB-Zugriff blockiert. Bitte diese Seite in Edge oder Chrome unter localhost öffnen.';
-  if (error.name === 'NetworkError' || error.name === 'InvalidStateError') return 'Port nicht verfügbar. Andere serielle Monitore schließen und USB-Verbindung prüfen. ' + error.message;
+  if (error.name === 'NotFoundError') return 'Port selection canceled.';
+  if (error.name === 'SecurityError') return 'USB access blocked. Open this page in Edge or Chrome on localhost.';
+  if (error.name === 'NetworkError' || error.name === 'InvalidStateError') return 'Port unavailable. Close other serial monitors and check the USB connection. ' + error.message;
   return error.message || String(error);
 }
 
@@ -60,7 +60,7 @@ async function connect(device) {
   try {
     port = await navigator.serial.requestPort();
     if ([...devices.values()].some(other => other !== device && other.port === port)) {
-      throw new Error('Dieser Port ist bereits mit dem anderen Board verbunden. Bitte den zweiten ESP wählen.');
+      throw new Error('This port is already connected to the other board. Select the second ESP.');
     }
     await port.open({ baudRate: 115200 });
     device.port = port;
@@ -71,9 +71,9 @@ async function connect(device) {
     const info = port.getInfo();
     device.card.querySelector('.device-info').textContent = `USB ${info.usbVendorId?.toString(16).padStart(4, '0') || '????'}:${info.usbProductId?.toString(16).padStart(4, '0') || '????'} · 115200 Baud`;
     try { await port.setSignals({ dataTerminalReady: true }); }
-    catch { log(device.name, 'DTR konnte nicht gesetzt werden. Falls keine Ausgabe erscheint, kurz RESET drücken.', 'system'); }
+    catch { log(device.name, 'Could not set DTR. If there is no output, briefly press RESET.', 'system'); }
     updateDevice(device, 'connected');
-    log(device.name, 'USB verbunden. Warte auf serielle Ausgabe …', 'system');
+    log(device.name, 'USB connected. Waiting for serial output …', 'system');
     device.task = read(device);
     void loadTest.identify(device.name);
   } catch (error) {
@@ -117,8 +117,8 @@ async function read(device) {
     device.port = null;
     device.stopping = false;
     updateDevice(device, 'idle');
-    device.card.querySelector('.device-info').textContent = 'USB-Port im Browser auswählen · 115200 Baud';
-    log(device.name, 'USB-Verbindung beendet.', 'system');
+    device.card.querySelector('.device-info').textContent = 'Select a USB port in the browser · 115200 baud';
+    log(device.name, 'USB connection closed.', 'system');
   }
 }
 
@@ -133,9 +133,9 @@ async function disconnect(device) {
 
 async function writeCommand(name, command) {
   const device = devices.get(name);
-  if (!device?.port?.writable || device.stopping) throw new Error('USB-Schreiben nicht verfügbar.');
+  if (!device?.port?.writable || device.stopping) throw new Error('USB writing unavailable.');
   const task = (device.writes || Promise.resolve()).catch(() => {}).then(async () => {
-    if (!device.port?.writable || device.stopping) throw new Error('USB-Verbindung beendet.');
+    if (!device.port?.writable || device.stopping) throw new Error('USB connection closed.');
     const writer = device.port.writable.getWriter();
     try { await writer.write(new TextEncoder().encode(command + '\n')); }
     finally { writer.releaseLock(); }
@@ -172,21 +172,21 @@ function renderLoad() {
   $('#load-slider').disabled = loadTest.busy;
   $('#load-status').textContent = loadTest.message;
   $('#load-test').classList.toggle('is-running', loadTest.active);
-  $('#load-target').textContent = session ? session.rate.toLocaleString('de-DE') : '—';
-  $('#load-actual').textContent = rx ? rx.rx_fps.toLocaleString('de-DE') : '—';
-  $('#load-queued-rate').textContent = tx ? tx.queued_fps.toLocaleString('de-DE') : '—';
-  const value = (id, n) => { $(id).textContent = n === undefined ? '—' : n.toLocaleString('de-DE'); };
+  $('#load-target').textContent = session ? session.rate.toLocaleString('en-US') : '—';
+  $('#load-actual').textContent = rx ? rx.rx_fps.toLocaleString('en-US') : '—';
+  $('#load-queued-rate').textContent = tx ? tx.queued_fps.toLocaleString('en-US') : '—';
+  const value = (id, n) => { $(id).textContent = n === undefined ? '—' : n.toLocaleString('en-US'); };
   value('#load-queued', tx?.queued); value('#load-rx-total', rx?.rx); value('#load-rejected', tx?.rejected);
   value('#load-gaps', rx?.gaps); value('#load-skipped', tx?.skipped); value('#load-pending', tx?.pending);
   $('#load-errors').textContent = `${tx?.errors ?? '—'} / ${rx?.errors ?? '—'}`;
   $('#load-missed').textContent = `${rx?.missed ?? '—'} / ${rx?.overrun ?? '—'}`;
-  $('#load-elapsed').textContent = tx ? `${(tx.elapsed_ms / 1000).toFixed(1)} / ${session.seconds} s` : 'Noch kein Lasttest';
+  $('#load-elapsed').textContent = tx ? `${(tx.elapsed_ms / 1000).toFixed(1)} / ${session.seconds} s` : 'No load test yet';
   $('#load-freshness').textContent = session?.updated && Date.now() - session.updated > 3000
-    ? 'Statusbericht älter als drei Sekunden; die zuletzt gemessene Rate bleibt angezeigt.' : 'Messfenster der Firmware · etwa ein Statusbericht pro Sekunde';
+    ? 'Status report older than three seconds; the last measured rate remains displayed.' : 'Firmware measurement windows · about one status report per second';
   const chart = timeline(session?.samples);
   $('#load-tx-line').setAttribute('d', chart.paths.sender);
   $('#load-rx-line').setAttribute('d', chart.paths.receiver);
-  $('#load-chart-max').textContent = chart.maximum.toLocaleString('de-DE');
+  $('#load-chart-max').textContent = chart.maximum.toLocaleString('en-US');
   for (const label of document.querySelectorAll('[data-chart-second]')) {
     label.textContent = `${Math.round(chart.start / 1000) + Number(label.dataset.chartSecond)} s`;
   }
@@ -200,7 +200,7 @@ function renderLoad() {
       dot.setAttribute('cx', point.x); dot.setAttribute('cy', point.y); dot.setAttribute('r', '3');
       dot.setAttribute('class', point.role === 'sender' ? 'load-tx-dot' : 'load-rx-dot');
       const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-      title.textContent = `${(point.elapsed / 1000).toFixed(2)} s · ${point.role === 'sender' ? 'TX eingereiht' : 'RX empfangen'}: ${point.fps.toLocaleString('de-DE')} Frames/s`;
+      title.textContent = `${(point.elapsed / 1000).toFixed(2)} s · ${point.role === 'sender' ? 'TX queued' : 'RX received'}: ${point.fps.toLocaleString('en-US')} Frames/s`;
       dot.append(title); return dot;
     }));
   }
@@ -232,8 +232,8 @@ for (const name of ['sender', 'receiver']) {
 if (!supported) {
   $('#compatibility').hidden = false;
   $('#compatibility').textContent = !window.isSecureContext
-    ? 'Bitte über http://localhost:8765/debug/ aufrufen. USB-Zugriff benötigt localhost oder HTTPS.'
-    : 'Dieser Browser bietet keinen Web-Serial-Zugriff. Bitte die Adresse in Microsoft Edge oder Google Chrome auf deinem Mac öffnen.';
+    ? 'Open http://localhost:8765/debug/. USB access requires localhost or HTTPS.'
+    : 'This browser does not support Web Serial. Open the address in Microsoft Edge or Google Chrome on your Mac.';
 }
 
 function render() {
@@ -244,13 +244,13 @@ function render() {
   const fragment = document.createDocumentFragment();
   if (!visible.length) {
     const empty = document.createElement('div'); empty.className = 'empty';
-    empty.textContent = logs.length ? 'Keine Zeilen passen zum Filter.' : 'Noch ganz still hier. Verbinde einen USB-Port.';
+    empty.textContent = logs.length ? 'No lines match the filter.' : 'Quiet so far. Connect a USB port.';
     fragment.append(empty);
   }
   for (const row of visible) {
     const line = document.createElement('div'); line.className = `log-line ${row.kind}`;
     for (const [className, value] of [
-      ['log-time', row.time.toLocaleTimeString('de-DE', { hour12: false }) + '.' + String(row.time.getMilliseconds()).padStart(3, '0')],
+      ['log-time', row.time.toLocaleTimeString('en-US', { hour12: false }) + '.' + String(row.time.getMilliseconds()).padStart(3, '0')],
       ['log-source', row.source === 'sender' ? 'SENDER' : row.source === 'receiver' ? 'RECEIVER' : 'SYSTEM'],
       ['log-message', row.message]
     ]) { const span = document.createElement('span'); span.className = className; span.textContent = value; line.append(span); }
@@ -260,32 +260,32 @@ function render() {
   const scroll = pane.scrollTop;
   pane.replaceChildren(fragment);
   pane.scrollTop = $('#autoscroll').checked ? pane.scrollHeight : scroll;
-  $('#line-count').textContent = `${visible.length} / ${logs.length} Zeilen`;
+  $('#line-count').textContent = `${visible.length} / ${logs.length} lines`;
 }
 
 function metrics() {
   renderLoad();
   communication.renderFrame();
-  $('#rx-count').textContent = rxCount.toLocaleString('de-DE');
-  $('#counter').textContent = latestCounter === null ? '—' : latestCounter.toLocaleString('de-DE');
-  $('#gaps').textContent = gapCount.toLocaleString('de-DE');
+  $('#rx-count').textContent = rxCount.toLocaleString('en-US');
+  $('#counter').textContent = latestCounter === null ? '—' : latestCounter.toLocaleString('en-US');
+  $('#gaps').textContent = gapCount.toLocaleString('en-US');
   const age = lastRx ? Math.floor((Date.now() - lastRx) / 1000) : null;
-  $('#last-rx').textContent = age === null ? 'Noch kein CAN-Empfang' : `Letztes RX-Frame vor ${age} s`;
+  $('#last-rx').textContent = age === null ? 'No CAN reception yet' : `Last RX frame ${age} s ago`;
   const anyConnected = [...devices.values()].some(device => device.port);
   const active = anyConnected && age !== null && age < 4;
   $('.bus-state').classList.toggle('active', active);
-  $('#bus-label').textContent = active ? 'CAN-EMPFANG BESTÄTIGT' : anyConnected ? 'WARTE AUF FRAMES' : 'WARTE AUF USB';
-  $('#bus-detail').textContent = active ? 'RX-Frames kommen an. Der Bus spricht.' : anyConnected
-    ? age === null ? 'USB ist offen. Noch keine CAN-Frames erkannt. Bei Stille kurz RESET drücken.' : 'Keine aktuellen RX-Frames. Sender und Verkabelung prüfen.'
-    : 'Receiver verbinden, dann den Sender starten.';
+  $('#bus-label').textContent = active ? 'CAN RECEPTION CONFIRMED' : anyConnected ? 'WAITING FOR FRAMES' : 'WAITING FOR USB';
+  $('#bus-detail').textContent = active ? 'RX frames are arriving. The bus is talking.' : anyConnected
+    ? age === null ? 'USB is open. No CAN frames detected yet. If silent, briefly press RESET.' : 'No recent RX frames. Check the sender and wiring.'
+    : 'Connect the receiver, then start the sender.';
 }
 
 for (const id of ['source', 'search', 'autoscroll']) $('#' + id).addEventListener('input', () => { dirty = true; });
 $('#pause').addEventListener('click', () => {
   paused = !paused;
-  $('#pause').textContent = paused ? 'Anzeige fortsetzen' : 'Anzeige pausieren';
+  $('#pause').textContent = paused ? 'Resume display' : 'Pause display';
   $('#pause').setAttribute('aria-pressed', String(paused));
-  $('#capture-state').textContent = paused ? 'ANZEIGE PAUSIERT · Aufzeichnung und Messwerte laufen weiter' : 'LIVE · maximal 2000 Zeilen gespeichert';
+  $('#capture-state').textContent = paused ? 'DISPLAY PAUSED · Recording and measurements continue' : 'LIVE · Up to 2,000 lines stored';
   dirty = true;
 });
 $('#clear').addEventListener('click', () => { logs = []; dirty = true; });
@@ -296,5 +296,5 @@ $('#export').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 setInterval(() => { render(); metrics(); }, 200);
-log('system', 'Bereit. Sender und Receiver können gleichzeitig verbunden werden. Die Auswahl eines Ports gibt dieser Seite USB-Zugriff.', 'system');
-log('system', 'TX „ok“ bedeutet nur eingereiht. Erst RX-Frames bestätigen CAN-Empfang. Zählersprünge sind Hinweise, kein sicherer Nachweis für Busverluste.', 'system');
+log('system', 'Ready. Sender and receiver can be connected simultaneously. Selecting a port grants this page USB access.', 'system');
+log('system', 'TX “ok” only means queued. Only RX frames confirm CAN reception. Counter gaps are clues, not proof of bus losses.', 'system');
