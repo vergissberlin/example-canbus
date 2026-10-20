@@ -206,6 +206,16 @@ Starting a new test resets them. After more than three seconds without a new
 report, the display is marked stale. Pausing or filtering the console affects
 neither measurements nor control commands.
 
+The same chart also includes all diagnostic counters from the table: TX queue
+rejections, scheduler skips, counter gaps, pending TX frames, RX queue full,
+hardware overruns, and sender/receiver bus errors. The upper plot shows queued
+and received frames/s. The lower plot uses a separate scale and shows counter
+increases per firmware reporting window (not cumulative totals); TX pending is
+the queue size at the end of that window. Hover text includes the window length.
+Checkboxes toggle each of the ten series independently without deleting history;
+scales use only visible series, allowing small error counts to be inspected.
+The table continues to show cumulative totals. No new firmware is required.
+
 The receiver runs without the previous 50-ms pause per frame. Load frames are
 not logged individually over serial; both boards report totals roughly once per
 second. This is intended to keep the USB console from limiting the test itself.
@@ -232,7 +242,7 @@ Use only in this isolated breadboard experiment.
 
 **Validation status:** JavaScript protocol and state tests, native C++ tests of
 the command parser and pacing, and both PlatformIO builds have been checked
-locally. All 35 JavaScript tests and 18 browser integration tests pass; the native
+locally. All 38 JavaScript tests and 19 browser integration tests pass; the native
 C++ test and both PlatformIO builds also succeed. The browser test page explicitly
 uses simulated USB ports. On 20 October 2026 both ESPs were flashed with the
 load-test firmware. A real 100 frames/s test lasting three seconds queued 299

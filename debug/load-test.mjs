@@ -36,6 +36,19 @@ export function parseLabLine(line) {
   return { type, ...values };
 }
 
+export const CHART_SERIES = [
+  {id:'sender', role:'sender', label:'TX queued', color:'#28739b', unit:'frames/s', pane:'rate'},
+  {id:'receiver', role:'receiver', label:'RX received', color:'#547421', unit:'frames/s', pane:'rate'},
+  {id:'rejected', role:'sender', field:'rejected', label:'TX queue full / rejected', color:'#bc3d32'},
+  {id:'skipped', role:'sender', field:'skipped', label:'Scheduler skipped', color:'#b57716'},
+  {id:'gaps', role:'receiver', field:'gaps', label:'Counter gaps', color:'#8e4ba1'},
+  {id:'pending', role:'sender', field:'pending', label:'TX pending', color:'#607180', gauge:true},
+  {id:'missed', role:'receiver', field:'missed', label:'RX queue full', color:'#008479'},
+  {id:'overrun', role:'receiver', field:'overrun', label:'HW overrun', color:'#b74e82'},
+  {id:'tx_errors', role:'sender', field:'errors', label:'Bus errors · sender', color:'#78372e'},
+  {id:'rx_errors', role:'receiver', field:'errors', label:'Bus errors · receiver', color:'#4355a1'}
+];
+
 export class LoadTest {
   constructor({ send, changed = () => {}, now = Date.now, schedule = (fn, ms) => setTimeout(fn, ms), cancel = id => clearTimeout(id) }) {
     this.send = send; this.changed = changed; this.now = now; this.schedule = schedule; this.cancel = cancel;
@@ -93,12 +106,22 @@ export class LoadTest {
         this.session[role === 'sender' ? 'tx' : 'rx'] = event;
         this.session.updated = this.now();
         const samples = this.session.samples;
-        // Ignore zero-length startup windows, duplicates and frozen sender timestamps after STOP.
-        const previous = samples.findLast(sample => sample.role === role);
-        if (event.elapsed_ms > (previous?.elapsed ?? 0)) {
-          samples.push({ role, elapsed: event.elapsed_ms, fps: role === 'sender' ? event.queued_fps : event.rx_fps });
-          const cutoff = Math.max(...samples.map(sample => sample.elapsed)) - 60000;
-          this.session.samples = samples.filter(sample => sample.elapsed >= cutoff);
+        const baseline = this.session.history?.[role];
+        // Startup reports establish the baseline; duplicate/frozen timestamps do not add points.
+        if (!baseline || event.elapsed_ms > baseline.elapsed_ms) {
+          this.session.history ??= {};
+          this.session.history[role] = event;
+          if (event.elapsed_ms > 0) {
+            const values = {};
+            for (const series of CHART_SERIES.filter(item => item.role === role && item.field)) {
+              values[series.id] = series.gauge ? event[series.field]
+                : Math.max(0, event[series.field] - (baseline?.[series.field] ?? 0));
+            }
+            samples.push({ role, elapsed:event.elapsed_ms, fps:role === 'sender' ? event.queued_fps : event.rx_fps,
+              span:event.elapsed_ms - (baseline?.elapsed_ms ?? 0), values });
+            const cutoff = Math.max(...samples.map(sample => sample.elapsed)) - 60000;
+            this.session.samples = samples.filter(sample => sample.elapsed >= cutoff);
+          }
         }
       }
       if (event.type === 'end') {
@@ -177,21 +200,35 @@ export class LoadTest {
 }
 
 // Device elapsed time, never USB arrival order, determines the horizontal position.
-export function timeline(samples = []) {
+export function timeline(samples = [], enabled = CHART_SERIES.map(series => series.id)) {
   const end = Math.max(60000, ...samples.map(sample => sample.elapsed));
   const start = end - 60000;
   const visible = samples.filter(sample => sample.elapsed >= start && sample.elapsed <= end);
-  const maximum = Math.max(1, ...visible.map(sample => sample.fps));
-  const x = elapsed => 58 + (elapsed - start) / 60000 * 562;
-  const y = fps => 160 - fps / maximum * 130;
-  const paths = {};
-  for (const role of ROLES) {
+  const points = [], diagnosticPoints = [], paths = {};
+  for (const series of CHART_SERIES) {
+    paths[series.id] = '';
+    if (!enabled.includes(series.id)) continue;
+    for (const sample of visible.filter(sample => sample.role === series.role)) {
+      const value = series.field ? sample.values?.[series.id] : sample.fps;
+      if (value === undefined) continue;
+      (series.pane === 'rate' ? points : diagnosticPoints).push({...sample, series:series.id, value});
+    }
+  }
+  points.sort((a,b) => a.elapsed - b.elapsed);
+  diagnosticPoints.sort((a,b) => a.elapsed - b.elapsed);
+  const maximum = Math.max(1, ...points.map(point => point.value));
+  const diagnosticMaximum = Math.max(1, ...diagnosticPoints.map(point => point.value));
+  for (const series of CHART_SERIES) {
     let previous;
-    paths[role] = visible.filter(sample => sample.role === role).map(sample => {
-      const move = !previous || sample.elapsed - previous.elapsed > 1500;
-      previous = sample;
-      return `${move ? 'M' : 'L'}${x(sample.elapsed).toFixed(2)} ${y(sample.fps).toFixed(2)}${move ? 'h0' : ''}`;
+    const target = series.pane === 'rate' ? points : diagnosticPoints;
+    paths[series.id] = target.filter(point => point.series === series.id).map(point => {
+      point.x = 58 + (point.elapsed - start) / 60000 * 562;
+      point.y = series.pane === 'rate' ? 140 - point.value / maximum * 110
+        : 300 - point.value / diagnosticMaximum * 95;
+      const move = !previous || point.elapsed - previous.elapsed > 1500;
+      previous = point;
+      return `${move ? 'M' : 'L'}${point.x.toFixed(2)} ${point.y.toFixed(2)}${move ? 'h0' : ''}`;
     }).join(' ');
   }
-  return { start, end, maximum, paths, points: visible.map(sample => ({ ...sample, x: x(sample.elapsed), y: y(sample.fps) })) };
+  return {start, end, maximum, diagnosticMaximum, paths, points, diagnosticPoints};
 }

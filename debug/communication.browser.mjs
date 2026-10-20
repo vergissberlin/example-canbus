@@ -40,7 +40,7 @@ function bootstrap(options) {
 }
 
 async function fixture(options = {}) {
-  const html = await (await fetch('./index.html?v=timeline1', {cache:'no-store'})).text();
+  const html = await (await fetch('./index.html?v=diagnostics1', {cache:'no-store'})).text();
   const iframe = document.createElement('iframe');
   iframe.title = 'Simulated CAN/LAB console'; iframe.style.width = '1160px';
   const base = new URL('./', location.href).href;
@@ -179,8 +179,20 @@ async function run() {
   await check('Time chart shows separate TX/RX points even with a paused console', async () => {
     assert(load.doc.querySelector('#load-tx-line').getAttribute('d').startsWith('M'), 'TX curve missing');
     assert(load.doc.querySelector('#load-rx-line').getAttribute('d').startsWith('M'), 'RX curve missing');
-    assert(load.doc.querySelectorAll('#load-chart-points circle').length === 2, 'Duplicate or missing points');
+    assert(load.doc.querySelectorAll('#load-chart-points circle[data-series=sender], #load-chart-points circle[data-series=receiver]').length === 2, 'Duplicate or missing points');
     assert(load.doc.querySelector('[data-chart-second="60"]').textContent === '60 s', 'Seconds axis missing');
+  });
+  await check('Diagnostic chart shows counter increments and toggles series without losing samples', async () => {
+    const queued = senderStats(load.ports[0].test).replace('elapsed_ms=1000','elapsed_ms=2000').replace('rejected=10','rejected=13').replace('skipped=0','skipped=2');
+    load.ports[0].send(queued);
+    await until(() => load.doc.querySelectorAll('circle[data-series=skipped]').length === 2);
+    assert(load.doc.querySelector('circle[data-series=skipped]:last-child title')?.textContent.includes('2 events') || [...load.doc.querySelectorAll('circle[data-series=skipped] title')].some(t=>t.textContent.includes('2 events')), 'Skip increment missing');
+    const toggle=load.doc.querySelector('[data-chart-series][value=skipped]');
+    toggle.click();
+    assert(load.doc.querySelector('[data-chart-path=skipped]').getAttribute('d') === '', 'Hidden series remains drawn');
+    toggle.click();
+    assert(load.doc.querySelectorAll('circle[data-series=skipped]').length === 2, 'Toggling discarded history');
+    assert(load.doc.querySelectorAll('[data-chart-series]').length === 10, 'Table metrics missing');
   });
   await check('Slider moves in steps of five; preset 1 remains available', async () => {
     const slider=load.doc.querySelector('#load-slider');
@@ -201,6 +213,8 @@ async function run() {
   await check('Load test: no horizontal page overflow at 390px', async () => {
     load.iframe.style.width = '390px'; await wait(50);
     assert(load.doc.documentElement.scrollWidth <= load.doc.documentElement.clientWidth + 1, 'Load test overflows');
+    const chart=load.doc.querySelector('.load-chart-scroll');
+    assert(chart.scrollWidth > chart.clientWidth, 'Chart must scroll to keep labels readable');
     load.iframe.style.width = '1160px';
   });
   await check('Load test: disconnecting receiver requests sender stop', async () => {
@@ -211,7 +225,23 @@ async function run() {
     assert(load.iframe.contentWindow.testCommands.at(-1).command === 'LAB STOP', 'No stop on disconnect');
   });
   // Leave a clean simulated view for visual inspection, never the real USB page.
-  await fixture();
+  const preview = await fixture({loadTest:true});
+  preview.click('[data-device="sender"] .connect'); preview.click('[data-device="receiver"] .connect');
+  await until(() => !preview.doc.querySelector('#load-start').disabled);
+  preview.click('#load-start');
+  await until(() => preview.doc.querySelector('#load-test').classList.contains('is-running'));
+  const id=preview.ports[0].test;
+  for (let second=1;second<=10;second++) {
+    preview.ports[0].send(senderStats(id).replace('elapsed_ms=1000',`elapsed_ms=${second*1000}`).replace('queued_fps=100',`queued_fps=${4000+second*10}`).replace('rejected=10',`rejected=${second*80}`).replace('skipped=0',`skipped=${second*3}`).replace('errors=0',`errors=${second>7?1:0}`));
+    preview.ports[1].send(receiverStats(id,second*3990).replace(`rx_fps=${second*3990}`,`rx_fps=${3980+second*10}`).replace('elapsed_ms=1000',`elapsed_ms=${second*1000}`).replace('gaps=0',`gaps=${second>5?2:0}`));
+  }
+  await until(() => preview.doc.querySelectorAll('circle[data-series=sender]').length === 10);
+  preview.click('#load-stop');
+  preview.doc.querySelector('#load-title').textContent='SIMULATION · diagnostic chart';
+  if (new URL(location.href).searchParams.has('preview')) {
+    preview.doc.querySelector('#load-test').scrollIntoView();
+    preview.iframe.scrollIntoView();
+  }
   document.querySelector('#result').textContent = `${passed} passed · ${failed} failed · Simulation, not a hardware test`;
   runButton.disabled = false;
 }

@@ -1,6 +1,6 @@
 import { parseLine, counterGap, LineBuffer } from './protocol.mjs';
 import { CommunicationView, loadCommunication } from './communication.mjs';
-import { LoadTest, parseLabLine, timeline } from './load-test.mjs?v=timeline1';
+import { LoadTest, parseLabLine, timeline, CHART_SERIES } from './load-test.mjs?v=diagnostics1';
 
 const $ = selector => document.querySelector(selector);
 const MAX_LINES = 2000;
@@ -183,28 +183,36 @@ function renderLoad() {
   $('#load-elapsed').textContent = tx ? `${(tx.elapsed_ms / 1000).toFixed(1)} / ${session.seconds} s` : 'No load test yet';
   $('#load-freshness').textContent = session?.updated && Date.now() - session.updated > 3000
     ? 'Status report older than three seconds; the last measured rate remains displayed.' : 'Firmware measurement windows · about one status report per second';
-  const chart = timeline(session?.samples);
-  $('#load-tx-line').setAttribute('d', chart.paths.sender);
-  $('#load-rx-line').setAttribute('d', chart.paths.receiver);
+  const enabled = [...document.querySelectorAll('[data-chart-series]:checked')].map(input => input.value);
+  const chart = timeline(session?.samples, enabled);
+  for (const series of CHART_SERIES) {
+    const path = document.querySelector(`[data-chart-path="${series.id}"]`);
+    path.setAttribute('d', chart.paths[series.id]);
+  }
   $('#load-chart-max').textContent = chart.maximum.toLocaleString('en-US');
+  $('#load-diagnostic-max').textContent = chart.diagnosticMaximum.toLocaleString('en-US');
   for (const label of document.querySelectorAll('[data-chart-second]')) {
     label.textContent = `${Math.round(chart.start / 1000) + Number(label.dataset.chartSecond)} s`;
   }
-  // SVG titles make each measured window inspectable without interpolating missing data.
   const dots = $('#load-chart-points');
-  const signature = JSON.stringify(chart.points);
+  const points = [...chart.points, ...chart.diagnosticPoints];
+  const signature = JSON.stringify(points);
   if (dots.dataset.samples !== signature) {
     dots.dataset.samples = signature;
-    dots.replaceChildren(...chart.points.map(point => {
+    dots.replaceChildren(...points.map(point => {
+      const series = CHART_SERIES.find(item => item.id === point.series);
       const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       dot.setAttribute('cx', point.x); dot.setAttribute('cy', point.y); dot.setAttribute('r', '3');
-      dot.setAttribute('class', point.role === 'sender' ? 'load-tx-dot' : 'load-rx-dot');
+      dot.setAttribute('fill', series.color); dot.dataset.series = series.id;
       const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-      title.textContent = `${(point.elapsed / 1000).toFixed(2)} s · ${point.role === 'sender' ? 'TX queued' : 'RX received'}: ${point.fps.toLocaleString('en-US')} Frames/s`;
+      const unit = series.unit ?? (series.gauge ? 'frames pending' : `events / ${((point.span ?? 1000) / 1000).toFixed(2)} s window`);
+      title.textContent = `${(point.elapsed / 1000).toFixed(2)} s · ${series.label}: ${point.value.toLocaleString('en-US')} ${unit}`;
       dot.append(title); return dot;
     }));
   }
 }
+
+for (const input of document.querySelectorAll('[data-chart-series]')) input.addEventListener('change', renderLoad);
 
 for (const id of ['load-rate', 'load-slider']) $('#' + id).addEventListener('input', event => {
   $(id === 'load-rate' ? '#load-slider' : '#load-rate').value = event.target.value;
