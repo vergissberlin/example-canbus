@@ -1,6 +1,6 @@
 // Parse only complete serial log lines from the existing Arduino sketches.
 export function parseLine(line) {
-  const rx = line.match(/^RX ID 0x([\da-f]+) DLC (\d+) Daten:((?:\s+[\da-f]{2})*)(?:\s+\(Zaehler=(\d+)\))?\s*$/i);
+  const rx = line.match(/^RX ID 0x([\da-f]+) DLC (\d+) Data:((?:\s+[\da-f]{2})*)(?:\s+\(Counter=(\d+)\))?\s*$/i);
   if (rx) {
     const id = Number.parseInt(rx[1], 16);
     const dlc = Number(rx[2]);
@@ -12,8 +12,8 @@ export function parseLine(line) {
     return { kind: 'rx', id, dlc, bytes, counter };
   }
   if (/^TX #\d+ -> ok$/.test(line)) return { kind: 'queued' };
-  if (/FEHLER|fehlgeschlagen|Bus-Off|Recovery/i.test(line)) return { kind: 'error' };
-  if (/warte auf Frames/.test(line)) return { kind: 'waiting' };
+  if (/\bERROR\b|^TWAI start failed$|Bus-Off|Recovery/i.test(line)) return { kind: 'error' };
+  if (/waiting for frames/i.test(line)) return { kind: 'waiting' };
   return { kind: 'text' };
 }
 
@@ -31,7 +31,7 @@ export class LineBuffer {
     this.pending = parts.pop();
     const result = parts.map(line => line.replace(/\r$/, ''));
     if (this.pending.length > 16384) {
-      result.push(this.pending.slice(0, 16384) + ' [Zeile gekürzt]');
+      result.push(this.pending.slice(0, 16384) + ' [line truncated]');
       this.pending = '';
     }
     return result;

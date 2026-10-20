@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="440" viewBox="0 0 1440 440" role="img" aria-labelledby="comm-title comm-desc">
-<title id="comm-title">CAN-Kommunikation zwischen zwei ESP32-C3 und ihren CAN-Modulen</title>
-<desc id="comm-desc">Links der Sender, rechts der Receiver. USB versorgt beide ESPs separat. GPIO 5 führt zu CTX, CRX führt zu GPIO 4. Die Module sind durch CANH, CANL und GND verbunden. Die Signalmarkierungen basieren auf seriellen Logmeldungen, nicht auf elektrischen Messungen.</desc>
+<title id="comm-title">CAN communication between two ESP32-C3 boards and their CAN modules</title>
+<desc id="comm-desc">Sender on the left, receiver on the right. USB powers both ESPs separately. GPIO 5 connects to CTX; CRX connects to GPIO 4. CANH, CANL and GND connect the modules. Signal highlights are based on serial log messages, not electrical measurements.</desc>
 <style>
 text{font-family:'Avenir Next',Avenir,'Segoe UI',sans-serif}.pin{font-family:monospace;font-size:12px;font-weight:700}.wire-base,.wire-glow{fill:none;stroke-linecap:round;stroke-linejoin:round}.wire-base{stroke-width:3;opacity:.62}.wire-glow{stroke-width:8;opacity:0;pointer-events:none}.pulse-active .wire-glow{animation:comm-flash 400ms ease-out}.pulse-active .wire-base{opacity:1}[data-node].has-error .node-outline{stroke:#c44836;stroke-width:3}[data-node].has-error .node-dot{fill:#c44836}[data-node].is-connected:not(.has-error) .node-dot{fill:#83a945}
 @keyframes comm-flash{0%,30%{opacity:1;stroke-width:8}100%{opacity:0;stroke-width:4}}
@@ -293,8 +293,8 @@ text{font-family:'Avenir Next',Avenir,'Segoe UI',sans-serif}.pin{font-family:mon
 <text x="75" y="183" fill="#627183" font-size="13" text-anchor="middle" font-weight="700" >USB</text>
 <text x="75" y="234" fill="#627183" font-size="12" text-anchor="middle" font-weight="400" >5 V</text>
 <rect x="125" y="192" width="22" height="28" rx="5" fill="#b9c4cc" stroke="#7c8993" />
-<text x="225" y="382" fill="#617167" font-size="14" text-anchor="middle" font-weight="400" data-node-status="sender">Nicht verbunden</text>
-<text x="525" y="329" fill="#617167" font-size="12" text-anchor="middle" font-weight="400" >3,3-V-Transceiver</text>
+<text x="225" y="382" fill="#617167" font-size="14" text-anchor="middle" font-weight="400" data-node-status="sender">Not connected</text>
+<text x="525" y="329" fill="#617167" font-size="12" text-anchor="middle" font-weight="400" >3.3 V transceiver</text>
 <g id="comm-receiver-power" data-wire="receiver-power" style="--wire-color:#d84343"><path d="M 1130 130 H 990" class="wire-base" stroke="#d84343"/>
 </g>
 <g id="comm-receiver-tx" data-wire="receiver-tx" style="--wire-color:#2474d2"><path d="M 1130 180 H 990" class="wire-base" stroke="#2474d2"/>
@@ -345,8 +345,8 @@ text{font-family:'Avenir Next',Avenir,'Segoe UI',sans-serif}.pin{font-family:mon
 <text x="1365" y="183" fill="#627183" font-size="13" text-anchor="middle" font-weight="700" >USB</text>
 <text x="1365" y="234" fill="#627183" font-size="12" text-anchor="middle" font-weight="400" >5 V</text>
 <rect x="1293" y="192" width="22" height="28" rx="5" fill="#b9c4cc" stroke="#7c8993" />
-<text x="1215" y="382" fill="#617167" font-size="14" text-anchor="middle" font-weight="400" data-node-status="receiver">Nicht verbunden</text>
-<text x="915" y="329" fill="#617167" font-size="12" text-anchor="middle" font-weight="400" >3,3-V-Transceiver</text>
+<text x="1215" y="382" fill="#617167" font-size="14" text-anchor="middle" font-weight="400" data-node-status="receiver">Not connected</text>
+<text x="915" y="329" fill="#617167" font-size="12" text-anchor="middle" font-weight="400" >3.3 V transceiver</text>
 <g id="comm-canh" data-wire="canh" style="--wire-color:#d68a00"><path d="M 600 177 H 840" class="wire-base" stroke="#d68a00"/>
 <path d="M 600 177 H 840" class="wire-glow" stroke="#d68a00"/>
 </g>
@@ -374,7 +374,7 @@ text{font-family:'Avenir Next',Avenir,'Segoe UI',sans-serif}.pin{font-family:mon
 <rect x="810" y="192" width="10" height="20" rx="2" fill="#e3c59b" stroke="#997e5b" />
 <text x="815" y="154" fill="#617167" font-size="11" text-anchor="middle" font-weight="400" >120 Ω</text>
 <text x="720" y="318" fill="#25364a" font-size="14" text-anchor="middle" font-weight="700" >500 kbit/s</text>
-<text x="720" y="353" fill="#25364a" font-size="15" text-anchor="middle" font-weight="700" data-last-frame="">Noch kein RX-Frame</text>
-<text x="720" y="379" fill="#617167" font-size="12" text-anchor="middle" font-weight="400" data-frame-age="">Warte auf CAN-Empfang</text>
-<text x="720" y="421" fill="#617167" font-size="12" text-anchor="middle" font-weight="400" >Pinpositionen schematisch · 3V3 und GND bleiben statisch · USB-Versorgung separat</text>
+<text x="720" y="353" fill="#25364a" font-size="15" text-anchor="middle" font-weight="700" data-last-frame="">No RX frame yet</text>
+<text x="720" y="379" fill="#617167" font-size="12" text-anchor="middle" font-weight="400" data-frame-age="">Waiting for CAN reception</text>
+<text x="720" y="421" fill="#617167" font-size="12" text-anchor="middle" font-weight="400" >Schematic pin positions · 3V3 and GND stay static · Separate USB power</text>
 </svg>

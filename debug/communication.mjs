@@ -17,7 +17,7 @@ export class CommunicationView {
     this.now = now;
     this.root = null;
     this.pulses = new Map();
-    this.boards = new Map(BOARDS.map(name => [name, { connected: false, error: false, status: 'Nicht verbunden' }]));
+    this.boards = new Map(BOARDS.map(name => [name, { connected: false, error: false, status: 'Not connected' }]));
     this.lastFrame = null;
   }
 
@@ -33,7 +33,7 @@ export class CommunicationView {
     const board = this.boards.get(source);
     board.connected = connected;
     board.error = false;
-    board.status = connected ? 'USB verbunden' : 'Nicht verbunden';
+    board.status = connected ? 'USB connected' : 'Not connected';
     // Shared bus highlights survive only if another board still owns them.
     this.clearPulses(source);
     this.renderBoard(source);
@@ -45,15 +45,15 @@ export class CommunicationView {
     if (!board.connected) return;
     if (event.kind === 'error') {
       board.error = true;
-      board.status = 'Fehler · Log prüfen';
+      board.status = 'Error · Check log';
       this.clearPulses(source);
     } else if (event.kind === 'rx') {
       board.error = false;
-      board.status = 'RX erkannt';
+      board.status = 'RX detected';
       this.lastFrame = { source, id: event.id, counter: event.counter, time: this.now() };
       this.renderFrame();
     } else if (event.kind === 'queued' && !board.error) {
-      board.status = 'TX eingereiht';
+      board.status = 'TX queued';
     }
     for (const wire of signalWires(source, event)) this.pulse(wire, source);
     this.renderBoard(source);
@@ -100,7 +100,7 @@ export class CommunicationView {
     if (!this.lastFrame) return;
     const { id, counter, source, time } = this.lastFrame;
     if (label) label.textContent = `RX 0x${id.toString(16).toUpperCase().padStart(3, '0')}${counter === null ? '' : ` · #${counter}`}`;
-    if (age) age.textContent = `${source === 'sender' ? 'Sender' : 'Receiver'} · vor ${Math.max(0, Math.floor((this.now() - time) / 1000))} s`;
+    if (age) age.textContent = `${source === 'sender' ? 'Sender' : 'Receiver'} · ${Math.max(0, Math.floor((this.now() - time) / 1000))} s ago`;
   }
 }
 
@@ -109,14 +109,14 @@ export async function loadCommunication(host, view, fetchSvg = fetch) {
     const response = await fetchSvg(new URL('../docs/canbus-communication.svg', import.meta.url));
     if (!response.ok) throw new Error(`SVG HTTP ${response.status}`);
     const parsed = new DOMParser().parseFromString(await response.text(), 'image/svg+xml');
-    if (parsed.querySelector('parsererror') || parsed.documentElement.localName !== 'svg') throw new Error('Ungültige SVG');
+    if (parsed.querySelector('parsererror') || parsed.documentElement.localName !== 'svg') throw new Error('Invalid SVG');
     // This is a bundled, same-origin asset; serial log text never becomes markup.
     const root = document.importNode(parsed.documentElement, true);
     host.replaceChildren(root);
     view.attach(root);
     return true;
   } catch {
-    host.textContent = 'Signalbild konnte nicht geladen werden. Die WebSerial-Konsole darunter funktioniert weiterhin.';
+    host.textContent = 'Could not load the signal diagram. The WebSerial console below still works.';
     host.classList.add('diagram-unavailable');
     return false;
   }

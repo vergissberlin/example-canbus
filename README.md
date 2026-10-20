@@ -1,16 +1,17 @@
 # example-canbus
 
-Minimale CAN-Bus-Demo mit zwei **ESP32-C3 SuperMini** und zwei **WCMCU-230** (SN65HVD230-Transceiver).
-Der ESP32-C3 bringt den CAN-Controller (TWAI) mit, der WCMCU-230 setzt nur die Pegel auf den Bus um.
+Minimal CAN bus demo with two **ESP32-C3 SuperMini** boards and two **WCMCU-230** modules (SN65HVD230 transceivers).
+The ESP32-C3 includes the CAN controller (TWAI); the WCMCU-230 only converts the signals to bus levels.
 
-> Ein ESP8266 (z. B. D1 mini) hat **keinen** CAN-Controller und funktioniert so nicht.
+> An ESP8266 (e.g. D1 mini) has **no** CAN controller and cannot be used this way.
 
 ## Hardware
-- 2x ESP32-C3 SuperMini (Stiftleisten anloeten)
-- 2x WCMCU-230 (3,3 V, 120-Ohm-Terminierung meist schon drauf)
-- Breadboard, Jumperkabel
 
-## Verdrahtung (auf beiden Seiten gleich)
+- 2x ESP32-C3 SuperMini (solder the pin headers)
+- 2x WCMCU-230 (3.3 V, usually with 120-ohm termination already fitted)
+- Breadboard, jumper wires
+
+## Wiring (identical on both sides)
 
 | ESP32-C3 | WCMCU-230 |
 |---|---|
@@ -19,28 +20,28 @@ Der ESP32-C3 bringt den CAN-Controller (TWAI) mit, der WCMCU-230 setzt nur die P
 | GPIO 5 | CTX |
 | GPIO 4 | CRX |
 
-Bus zwischen den Modulen: `CANH-CANH`, `CANL-CANL`, `GND-GND`.
+Bus connections between the modules: `CANH-CANH`, `CANL-CANL`, `GND-GND`.
 
-### Breadboard-Anschlussplan
+### Breadboard wiring diagram
 
-![Breadboard-Aufbau mit Sender, Receiver, CAN-Modulen und separater USB-Versorgung](docs/canbus-breadboard.svg)
+![Breadboard setup with sender, receiver, CAN modules and separate USB power supplies](docs/canbus-breadboard.svg)
 
-[SVG herunterladen](docs/canbus-breadboard.svg) · [PNG-Vorschau](docs/canbus-breadboard.png)
+[Download SVG](docs/canbus-breadboard.svg) · [PNG preview](docs/canbus-breadboard.png)
 
-[Interaktiven Breadboard-Plan in Wokwi öffnen](https://wokwi.com/projects/478383260674919425)
+[Open the interactive breadboard diagram in Wokwi](https://wokwi.com/projects/478383260674919425)
 
-Der Wokwi-Plan zeigt den Normalbetrieb mit beiden ESPs und CAN-Modulen auf
-Breadboards sowie farbigen Steckbrücken. Die virtuellen ESP32-C3-DevKit-Boards
-ersetzen dort die SuperMini-Darstellung: reale Pinpositionen und Lochreihen
-weichen ab. Nach GPIO-Nummern und Modulbeschriftungen verbinden. Der Plan
-ist eine Verdrahtungshilfe, keine elektrische CAN-Simulation. Im Normalbetrieb
-darf keine CTX-GND-Testbrücke gesteckt sein.
+The Wokwi diagram shows normal operation with both ESPs and CAN modules on
+breadboards, connected by colored jumper wires. Virtual ESP32-C3 DevKit boards
+stand in for the SuperMini boards: actual pin positions and breadboard rows
+differ. Connect by GPIO numbers and module labels. The diagram is a wiring aid,
+not an electrical CAN simulation. No CTX-GND test jumper may be fitted during
+normal operation.
 
-Die Zeichnung zeigt beide ESPs mit separater USB-Versorgung. Bauteile und
-Pinpositionen sind schematisch: beim Stecken nach den Beschriftungen am echten
-Board gehen. Jeder CAN-Transceiver wird vom zugehörigen ESP mit 3,3 V versorgt.
-Je Busende sind 120 Ohm zwischen CANH und CANL erforderlich; bereits vorhandene
-Modul-Abschlusswiderstände mitzählen und nicht zusätzlich bestücken.
+The drawing shows both ESPs with separate USB power supplies. Components and
+pin positions are schematic: follow the labels on the actual board when wiring.
+Each CAN transceiver is powered at 3.3 V by its own ESP.
+Each bus end requires 120 ohms between CANH and CANL; count any termination
+resistors already fitted to the modules and do not add duplicates.
 
 ```
  C3 #1 -- WCMCU #1                 WCMCU #2 -- C3 #2
@@ -49,136 +50,169 @@ Modul-Abschlusswiderstände mitzählen und nicht zusätzlich bestücken.
            GND  ------------------- GND
 ```
 
-### Verifizierter Hardware-Test vom 20. Oktober 2026
+### Verified hardware test on October 20, 2026
 
-Getestet wurden zwei ESP32-C3 SuperMini mit je einem WCMCU-230, beide ESPs
-mit eigener USB-Versorgung und ohne 5V-Brücke. Je Modul: ESP-3V3 an 3V3,
-ESP-GND an GND, GPIO 5 an CTX und GPIO 4 an CRX. Zwischen den Modulen sind
-CANH mit CANH, CANL mit CANL und GND mit GND verbunden. Beide vorhandenen
-120-Ohm-Modulabschlüsse bleiben bestückt; keine zusätzlichen Abschlüsse.
+Two ESP32-C3 SuperMini boards, each with a WCMCU-230, were tested with separate
+USB power supplies and no 5V jumper. For each module: ESP-3V3 to 3V3,
+ESP-GND to GND, GPIO 5 to CTX and GPIO 4 to CRX. Between the modules,
+CANH connects to CANH, CANL to CANL and GND to GND. Both existing
+120-ohm module terminations remain fitted; no additional terminations.
 
-| Prüfung | Ergebnis |
+| Check | Result |
 |---|---|
-| Gezielte Einzelübertragung bei 500 kbit/s | In beiden Richtungen empfangen und mit ACK bestätigt; Fehlerzähler null |
-| Gezielte Einzelübertragung bei 125 kbit/s | In beiden Richtungen empfangen und mit ACK bestätigt; Fehlerzähler null |
-| Normalbetrieb bei 500 kbit/s | 23 Frames in Folge im Receiver, Zähler 13 bis 35 ohne Lücken, 23 ACK-Meldungen, keine beobachteten Busfehler |
+| Controlled single transmission at 500 kbit/s | Received in both directions and acknowledged with ACK; error counters zero |
+| Controlled single transmission at 125 kbit/s | Received in both directions and acknowledged with ACK; error counters zero |
+| Normal operation at 500 kbit/s | 23 consecutive frames at the receiver, counters 13 through 35 without gaps, 23 ACK messages, no observed bus errors |
 
-Nach den Tests wurden die normalen Sender- und Receiver-Programme mit
-500 kbit/s wieder aufgespielt. Die Beobachtung über etwa 23 Sekunden ist ein
-Funktionstest und kein Nachweis langfristiger Störungsfreiheit. Die Prüfung
-bei 125 kbit/s war ein Einzeltest in jede Richtung, kein Dauerlauf.
+After testing, the normal sender and receiver programs at 500 kbit/s were
+flashed again. The roughly 23-second observation is a functional test,
+not proof of long-term interference-free operation. The 125 kbit/s check
+was a single test in each direction, not an endurance run.
 
-Während der Fehlersuche wurde eine fehlende Masseverbindung entdeckt. Frühere
-fehlgeschlagene Versuche beweisen deshalb keinen Moduldefekt. Auch der manuelle
-Dauertest mit CTX an GND ist hier kein zuverlässiger Defektnachweis: Trotz
-fehlender dauerhafter Busdifferenz wurden kurze Impulse zurückgemeldet und
-CAN-Frames erfolgreich übertragen. Der RX-Pegel kehrte bei GPIO-Abtastungen
-zwischen etwa 100 und 300 Mikrosekunden auf High zurück, obwohl TX Low blieb;
-die Ursache dieses Verhaltens wurde nicht abschließend bestimmt.
+Troubleshooting revealed a missing ground connection. Earlier failed attempts
+therefore do not prove a module defect. The manual sustained test with CTX
+connected to GND is also not a reliable defect indicator here: despite the
+absence of a sustained bus differential, short pulses were reported and CAN
+frames were transmitted successfully. GPIO sampling showed RX returning high
+after roughly 100 to 300 microseconds while TX remained low;
+the cause of this behavior was not conclusively determined.
 
-### Stromversorgung
-- Verifizierter Aufbau: beide ESPs separat per USB versorgen, keine 5V-Brücke.
-- Optional: nur Board #1 per USB, 5V und GND zu Board #2 bruecken.
-- Beim Flashen die 5V-Bruecke loesen (Rueckspeisung vermeiden).
-- Niemals 3V3 mit 3V3 verbinden. WCMCU-230 nie an 5 V.
+### Power supply
 
-## Debuggen im Browser (ohne Arduino IDE)
+- Verified setup: power both ESPs separately via USB, with no 5V jumper.
+- Optional: power only board #1 via USB and bridge 5V and GND to board #2.
+- Disconnect the 5V jumper when flashing (to prevent backfeeding).
+- Never connect 3V3 to 3V3 between boards. Never power the WCMCU-230 at 5 V.
 
-[CAN/LAB online öffnen](https://vergissberlin.github.io/example-canbus/debug/)
+## Browser debugging (without Arduino IDE)
 
+[Open CAN/LAB online](https://vergissberlin.github.io/example-canbus/debug/)
 
-Die lokale [CAN/LAB-Konsole](debug/index.html) liest die USB-Ausgabe der bereits
-geflashten Sketches. Sie kann beide Boards gleichzeitig öffnen, RX-Zähler und
-Zählersprünge anzeigen sowie Logs filtern, pausieren und als Text exportieren.
-Für das reine Lesen bestehender Logs ist keine Firmware-Änderung nötig;
-der einstellbare Lasttest benötigt beide aktuellen Sketches.
+The local [CAN/LAB console](debug/index.html) reads USB output from sketches
+already flashed onto the boards. It can open both boards simultaneously,
+show RX counters and counter gaps, and filter, pause and export logs as text.
+Reading existing logs requires no firmware changes;
+the adjustable load test requires both current sketches.
 
-1. Im Repository `./debug/serve.command` starten (auf macOS auch per Doppelklick).
-2. In **Microsoft Edge oder Google Chrome** auf dem Mac
-   **http://localhost:8765/debug/** öffnen. Der Browser muss Web Serial unterstützen.
-3. Beide ESPs per USB anschließen; bei separater USB-Versorgung keine 5V-Brücke
-   zwischen den Boards stecken. Andere serielle Monitore schließen.
-4. Pro Board **USB verbinden** anklicken und den zugehörigen Port freigeben.
-   Bei identischen Geräten zuerst nur den Receiver anschließen und verbinden,
-   danach den Sender anschließen und verbinden.
-5. Falls keine Ausgabe erscheint, am jeweiligen Board kurz **RESET ohne BOOT**
-   drücken. Steigende `RX ID 0x123`-Zähler bestätigen CAN-Kommunikation;
-   `TX … ok` bestätigt lediglich das Einreihen beim Sender.
+The console supports English firmware logs only. Flash the current sketches
+onto both boards before using it.
 
-Die Aufzeichnung bleibt im Browser; maximal 2000 Logzeilen werden gespeichert.
-„Anzeige pausieren“ stoppt nur die Darstellung; Aufzeichnung und Messwerte laufen
-weiter. „Leeren“ entfernt die Logzeilen, die Messwerte bleiben erhalten. Ein
-Seiten-Reload schließt die Verbindungen und setzt Logs und Messwerte zurück.
-Zählersprünge können auch durch fehlende USB-Logzeilen entstehen und beweisen
-keinen CAN-Paketverlust. Server mit `Ctrl+C` beenden.
+1. Run `./debug/serve.command` from the repository (on macOS, double-clicking also works).
+2. Open **http://localhost:8765/debug/** in **Microsoft Edge or Google Chrome**
+   on your Mac. The browser must support Web Serial.
+3. Connect both ESPs via USB; with separate USB power supplies, do not fit a 5V
+   jumper between the boards. Close other serial monitors.
+4. Click **Connect USB** for each board and grant access to its port.
+   For identical devices, first plug in and connect only the receiver,
+   then plug in and connect the sender.
+5. If there is no output, briefly press **RESET without BOOT** on the relevant
+   board. Increasing `RX ID 0x123` counters confirm CAN communication;
+   `TX … ok` only confirms queueing at the sender.
 
-### Einstellbarer CAN-Lasttest
+Recording stays in the browser; at most 2,000 log lines are stored.
+“Pause display” only pauses rendering; recording and measurements continue.
+“Clear” removes log lines while keeping measurements. Reloading the page closes
+connections and resets logs and measurements. Counter gaps can also result
+from missing USB log lines and do not prove CAN packet loss.
+Stop the server with `Ctrl+C`.
 
-Das Feld **„Wie viel geht durch?“** steuert den Sender über Web Serial:
+### Install as a PWA
 
-1. Beide aktuellen Sketches neu flashen (Befehle unter „Flashen mit PlatformIO“).
-   Ältere Demo- oder spezielle Selbsttest-Firmware unterstützt die Steuerbefehle nicht.
-2. Beide Boards in den richtigen USB-Karten verbinden. Der Firmware-Handshake
-   prüft Rolle, Protokollversion und die gemeinsame Bitrate von **500 kbit/s**.
-3. Zielrate zwischen **1 und 20.000 Frames/s** und Testdauer zwischen **1 und
-   60 Sekunden** wählen. Zunächst beispielsweise 100 Frames/s für zehn Sekunden.
-4. **Test starten** stoppt die normale Ein-Frame-pro-Sekunde-Demo, bereitet den
-   Receiver vor und startet erst nach dessen Bestätigung den Sender.
-5. Während des Tests lässt sich mit **Rate übernehmen** die Zielrate ändern;
-   die ursprüngliche Ablaufzeit bleibt erhalten. **Stopp** beendet das Einreihen.
-   Nach Ablauf stoppt die Firmware auch ohne geöffneten Browser automatisch.
-   Ein in Übertragung befindliches Frame kann noch abschließen.
-6. Nach dem Test bleibt der Sender gestoppt. RESET am Sender startet wieder
-   die normale Demo mit einem Frame pro Sekunde.
+CAN/LAB can be installed from the [GitHub Page](https://vergissberlin.github.io/example-canbus/debug/).
+In Chrome or Edge on a supported desktop or Android device, use the browser's
+**Install app** action. On iPhone or iPad, open the page in Safari and choose
+**Share → Add to Home Screen**. The app opens in its own window with a matching
+icon and startup screen.
 
-Lastframes verwenden die Standard-ID `0x123` und **acht Datenbytes**: vier Byte
-Zähler und vier Byte Testkennung, jeweils Little Endian. Die normale Demo
-verwendet weiterhin vier Datenbytes. Die Bitrate selbst wird hier nicht
-umgestellt. Die Zielrate ist angebotene Last und kann die Buskapazität übersteigen.
+After the first successful online visit, the console, control logic and wiring
+diagrams remain available offline. USB connections and recorded logs stay in the
+current browser session and are not stored in the offline cache. Close all app
+windows and tabs, then reopen the app to activate a downloaded service-worker
+update; an active USB session is never reloaded automatically.
 
-**Was die Anzeigen bedeuten:**
+Installation does not add Web Serial support to a browser. Safari on iOS/iPadOS
+can display the app and diagrams but cannot connect to these USB boards through
+Web Serial. Use a browser and operating system that support Web Serial for USB
+debugging and hardware load tests.
 
-- **Empfangen/FPS:** Vom Receiver innerhalb seines Firmware-Messfensters
-  gezählte Frames dieses Tests; keine Schätzung aus USB-Ankunftszeiten.
-- **Eingereiht/FPS:** Vom Sender erfolgreich in die TWAI-Sendewarteschlange
-  übergebene Frames. Das beweist keinen Empfang auf der Gegenstelle.
-- **TX-Queue voll / abgelehnt:** Nicht angenommene Sendeversuche. Der Zähler
-  im Payload wird dabei nicht erhöht, damit diese Versuche keine künstlichen
-  Empfangslücken erzeugen.
-- **Scheduler ausgelassen:** Nach einer Programmunterbrechung nicht nachgeholte
-  Sendegelegenheiten. Die Firmware begrenzt Nachholbursts auf 32 Frames.
-- **Zählerlücken:** Im passenden Test-Payload erkannte fehlende Sequenzwerte.
-  Nicht empfangene letzte Frames können dadurch allein nicht erkannt werden.
-- **RX-Queue voll / HW-Overrun** und **Busfehler Sender / Receiver:** Separate
-  TWAI-Fehlerzähler relativ zum Beginn dieses Tests. Sie sind keine Messung
-  der elektrischen Busauslastung und keine automatische Verlustquote.
+The PWA includes regular and maskable Android/desktop icons, Apple touch icons,
+Windows tiles, favicons, and portrait/landscape Apple startup images for 23 phone
+and tablet screen profiles. Android and desktop browsers generate their launch
+screens from the manifest icon and colors.
 
-Die LED auf dem Sender-SuperMini (GPIO 8, aktiv Low) leuchtet bei einer
-ACK-bestätigten CAN-Übertragung für 20 ms. Schnelle Übertragungen verlängern
-die Leuchtphase; bei hoher Rate wirkt die LED dauerhaft an. Das Blinken
-blockiert die CAN-Verarbeitung nicht. Die blaue Senderleitung in der
-Browser-Grafik zeigt dagegen das Einreihen von Frames anhand der USB-Logs,
-im Lasttest zusammengefasst pro Statusbericht; sie ist kein ACK-Nachweis.
+The master logo is `pwa/logo.png`. To regenerate all device images and their HTML
+links, run `python3 scripts/generate_pwa_assets.py` with ImageMagick 7 and the
+DejaVu Sans fonts installed. Build the deployable site with
+`python3 scripts/build_site.py`; output goes to the ignored `_site/` directory.
+The build versions the service-worker cache from the published files. GitHub
+Pages runs the same build automatically after relevant changes reach `main`.
 
-Das Zeitdiagramm zeigt die letzten 60 Sekunden auf einer Sekundenachse: blau
-und gestrichelt die zum Senden eingereihten Frames/s, grün die tatsächlich
-empfangenen Frames/s. TX ist keine Bestätigung einer erfolgreichen Übertragung.
-Die Punkte zeigen die ungefähr einsekündigen Firmware-Messfenster an ihrer
-Geräte-Laufzeit; es werden keine exakten Sekundenzählungen oder fehlenden Werte
-interpoliert. Größere Berichtslücken unterbrechen die Linie. Über einem Punkt
-stehen Messzeit und Rate. Der Regler arbeitet in Fünferschritten (5–20.000);
-1 Frame/s bleibt über die Vorgabe und das Zahlenfeld einstellbar. Alte Messwerte bleiben nach Testende sichtbar.
-Bei einem neuen Test werden sie zurückgesetzt. Bei mehr als drei Sekunden ohne
-neuen Bericht wird die Anzeige als veraltet gekennzeichnet. Konsole pausieren
-oder filtern beeinflusst weder Messwerte noch Steuerbefehle.
+### Adjustable CAN load test
 
-Der Receiver arbeitet ohne die frühere 50-ms-Pause pro Frame. Lastframes werden
-nicht einzeln seriell ausgegeben; beide Boards melden etwa einmal pro Sekunde
-Summen. Dadurch soll die USB-Konsole nicht selbst den Test begrenzen. Die
-Signalweg-Grafik pulsiert beim Eingang dieser Sammelberichte; sie zeigt keine
-zeitgenauen Einzelimpulse auf dem CAN-Bus.
+The **“How much gets through?”** panel controls the sender via Web Serial:
 
-Die Befehle werden mit Zeilenumbruch bei 115200 Baud übertragen:
+1. Flash both current sketches again (commands under “Flashing with PlatformIO”).
+   Older demo firmware and dedicated self-test firmware do not support the control commands.
+2. Connect both boards using the correct USB cards. The firmware handshake checks
+   the role, protocol version and shared bitrate of **500 kbit/s**.
+3. Choose a target rate between **1 and 20,000 frames/s** and a test duration
+   between **1 and 60 seconds**. Start with, for example, 100 frames/s for ten seconds.
+4. **Start test** stops the normal one-frame-per-second demo, prepares the receiver
+   and starts the sender only after the receiver acknowledges readiness.
+5. During the test, **Apply rate** changes the target rate while keeping the original
+   end time. **Stop** ends queueing. The firmware stops automatically when time
+   expires, even without an open browser. A frame already being transmitted may
+   still complete.
+6. After the test, the sender remains stopped. RESET on the sender restarts
+   the normal demo at one frame per second.
+
+Load frames use standard ID `0x123` and **eight data bytes**: a four-byte counter
+and a four-byte test ID, both little endian. The normal demo still uses four
+data bytes. The bitrate is not changed here. The target rate is offered load
+and may exceed bus capacity.
+
+**What the readings mean:**
+
+- **Received/FPS:** Frames for this test counted by the receiver within its
+  firmware measurement window; not an estimate based on USB arrival times.
+- **Queued/FPS:** Frames successfully handed to the sender's TWAI transmit queue.
+  This does not prove reception at the other end.
+- **TX queue full / rejected:** Transmit attempts that were not accepted. The
+  payload counter is not incremented for these attempts, so they do not create
+  artificial reception gaps.
+- **Scheduler skipped:** Transmission opportunities not caught up after a program
+  interruption. The firmware limits catch-up bursts to 32 frames.
+- **Counter gaps:** Missing sequence values detected in matching test payloads.
+  Missing final frames cannot be detected by this alone.
+- **RX queue full / HW overrun** and **Bus errors sender / receiver:** Separate
+  TWAI error counters relative to the start of this test. They do not measure
+  electrical bus utilization or automatically give a loss rate.
+
+The sender SuperMini LED (GPIO 8, active low) lights for 20 ms after an
+ACK-confirmed CAN transmission. Rapid transmissions extend the pulse, so at
+high rates it appears continuously lit. LED handling never delays CAN processing.
+The blue sender wire in the browser instead indicates queueing from USB logs,
+aggregated per status report during load tests; it does not confirm an ACK.
+
+The time chart shows the last 60 seconds on an axis in seconds: a blue dashed
+line for frames/s queued for transmission and a green line for frames/s actually
+received. TX does not confirm successful transmission. Points show the roughly
+one-second firmware measurement windows at their device elapsed time; exact
+per-second counts and missing values are not interpolated. Longer reporting gaps
+break the line. Hover over a point for measurement time and rate. The slider
+uses increments of five (5–20,000); 1 frame/s remains available through the preset
+and number field. Previous measurements stay visible after the test ends.
+Starting a new test resets them. After more than three seconds without a new
+report, the display is marked stale. Pausing or filtering the console affects
+neither measurements nor control commands.
+
+The receiver runs without the previous 50-ms pause per frame. Load frames are
+not logged individually over serial; both boards report totals roughly once per
+second. This is intended to keep the USB console from limiting the test itself.
+The signal-path diagram pulses when these summary reports arrive; it does not
+show precisely timed individual pulses on the CAN bus.
+
+Commands are sent with a newline at 115200 baud:
 
 ```text
 LAB HELLO
@@ -190,96 +224,92 @@ LAB STATUS
 LAB STOP
 ```
 
-`ARM` ist für den Receiver, `START` und `RATE` für den Sender. Die Testkennung
-muss auf beiden Seiten gleich und ungleich null sein. `START` enthält Kennung,
-Zielrate und Dauer in Sekunden. Ungültige Werte werden abgelehnt. Die
-Browserseite verwendet für jeden Start eine neue Kennung und wartet auf ACKs.
-Nur in diesem getrennten Breadboard-Versuchsaufbau verwenden.
+`ARM` is for the receiver; `START` and `RATE` are for the sender. The test ID
+must match on both sides and must be nonzero. `START` contains the ID, target
+rate and duration in seconds. Invalid values are rejected. The browser page
+uses a new ID for each start and waits for ACKs.
+Use only in this isolated breadboard experiment.
 
-**Prüfstand:** JavaScript-Protokoll- und Zustandstests, native C++-Tests des
-Befehlsparsers und der Taktung sowie beide PlatformIO-Builds sind lokal geprüft.
-Alle 29 JavaScript-Tests und 18 Browser-Integrationstests bestehen; auch der
-native C++-Test und beide PlatformIO-Builds sind erfolgreich. Die Browser-
-Prüfseite verwendet ausdrücklich simulierte USB-Ports. Am 20. Oktober 2026
-wurden beide ESPs mit der Lasttest-Firmware geflasht und ein echter Test mit
-100 Frames/s für drei Sekunden durchgeführt: 299 Frames eingereiht und alle
-299 empfangen, keine Zählerlücken, Queue-Rückweisungen oder Busfehler; der
-Sender stoppte automatisch. Nach Ergänzen der Sender-LED wurden außerdem
-fünf aufeinanderfolgende Demo-Frames mit CAN-ACK und passendem Receiver-Log
-bestätigt. Die sichtbare LED selbst wurde nicht per Kamera überprüft. Das ist
-keine Abnahme der maximalen Framerate oder aller Laststufen.
+**Validation status:** JavaScript protocol and state tests, native C++ tests of
+the command parser and pacing, and both PlatformIO builds have been checked
+locally. All 35 JavaScript tests and 18 browser integration tests pass; the native
+C++ test and both PlatformIO builds also succeed. The browser test page explicitly
+uses simulated USB ports. On 20 October 2026 both ESPs were flashed with the
+load-test firmware. A real 100 frames/s test lasting three seconds queued 299
+frames and received all 299, without counter gaps, rejected queue entries or
+bus errors; the sender stopped automatically. After adding the sender LED,
+five consecutive demo frames were confirmed by CAN ACKs and matching receiver
+logs, and the bounded load test passed again. The visible LED itself was not
+verified by camera. Maximum rate and other load levels remain unverified.
 
-### Live-Signalweg
+### Live signal path
 
-Oberhalb der WebSerial-Konsole zeigt die zusätzliche
-[Kommunikations-SVG](docs/canbus-communication.svg) beide ESPs und CAN-Module.
-Die Pinpositionen sind schematisch; der vollständige Breadboard-Plan bleibt
-weiter oben verfügbar.
+The additional [communication SVG](docs/canbus-communication.svg) above the
+WebSerial console shows both ESPs and CAN modules. Pin positions are schematic;
+the complete breadboard diagram remains available above.
 
-- **TX eingereiht:** GPIO 5 → CTX des jeweiligen Boards blitzt blau auf.
-  Das bedeutet noch keinen bestätigten Empfang.
-- **RX erkannt:** CANH/CANL und CRX → GPIO 4 des empfangenden Boards blitzen auf.
-  Letzte CAN-ID, gegebenenfalls Zähler und Alter des RX-Logs stehen in der Grafik.
-- **USB-Logdaten:** Die USB-Leitung des zugehörigen ESPs pulsiert bei seriellen
-  Daten, auch bei Warte- und Fehlermeldungen. Das bestätigt allein keinen CAN-Empfang.
-- **Fehler / Bus-Off:** Der betroffene ESP erhält eine rote Markierung.
-  Sie verschwindet bei neuem RX-Empfang oder erneuter USB-Verbindung.
+- **TX queued:** GPIO 5 → CTX on the relevant board flashes blue.
+  This does not yet confirm reception.
+- **RX detected:** CANH/CANL and CRX → GPIO 4 on the receiving board flash.
+  The diagram shows the last CAN ID, counter if available, and RX log age.
+- **USB log data:** The relevant ESP's USB wire pulses on serial data,
+  including waiting and error messages. This alone does not confirm CAN reception.
+- **Error / Bus-Off:** The affected ESP is marked red.
+  The mark clears on new RX reception or a new USB connection.
 
-Die Anzeige basiert auf USB-Logs und ist keine elektrische Messung. ACKs und
-elektrische Übertragungszeiten werden nicht simuliert. Versorgung und GND
-bleiben statisch. Die 400-ms-Markierungen laufen unabhängig von Logfilter und
-Konsolenpause; schnelle Ereignisse werden ohne Animationswarteschlange
-zusammengefasst. Trennen entfernt aktive Markierungen des Boards. Bei
-reduzierter Bewegung erscheint eine feste Farbmarkierung ohne Animation.
-Auf kleinen Bildschirmen lässt sich die Grafik horizontal scrollen.
-Kann die SVG nicht geladen werden, funktioniert WebSerial weiterhin.
+The display is based on USB logs, not electrical measurements. ACKs and electrical
+transmission timing are not simulated. Power and GND remain static. The 400-ms
+highlights run independently of log filters and console pausing; rapid events
+are combined without queueing animations. Disconnecting clears the board's active
+highlights. With reduced motion, a fixed color highlight replaces animation.
+On small screens, the diagram scrolls horizontally.
+If the SVG cannot be loaded, WebSerial continues to work.
 
 ### Tests
 
-Parser-, Signal- und Laststeuerungstests: `node --test debug/*.test.mjs`.
+Parser, signal and load-control tests: `node --test debug/*.test.mjs`.
 
-Native Firmware-Steuerungstests:
+Native firmware control tests:
 
 ```sh
 c++ -std=c++11 -Wall -Wextra -Werror tests/load_control_test.cpp -o /tmp/canlab-control-test
 /tmp/canlab-control-test
 ```
 
-Für Browser-Integrationstests bei laufendem lokalen Server
-http://localhost:8765/debug/communication.browser.test.html öffnen und
-**Tests starten** anklicken. Die klar markierte Testseite verwendet virtuelle
-USB-Ports in einem isolierten iframe und testet TX/RX, Pause/Filter,
-Ereignisfolgen, Fehler, Trennen, mobile Darstellung, die Reduced-Motion-Regel
-und den SVG-Ladefehler. Sie bestätigt keinen echten CAN-Empfang und verändert
-keine Hardwareverbindungen der normalen Debug-Seite.
+For browser integration tests, start the local server, open
+http://localhost:8765/debug/communication.browser.test.html and click **Run tests**.
+The clearly labeled test page uses virtual USB ports in an isolated iframe and
+checks TX/RX, pause/filter behavior, event sequences, errors, disconnecting,
+mobile layout, the reduced-motion rule and SVG load failure. It does not confirm
+real CAN reception or change hardware connections on the normal debug page.
 
-## Flashen mit PlatformIO
+## Flashing with PlatformIO
 
-### Getrennter Hardware-Selbsttest
+### Separate hardware self-test
 
-`pio run -c diagnostics.ini -e diagnostics -t upload --upload-port PORT` spielt
-die spezielle Test-Firmware auf ein Board. Sie startet mit deaktiviertem
-CAN-Controller und hält CTX auf dem rezessiven Pegel. Die Test-Firmware ersetzt
-vorübergehend Sender bzw. Receiver; für den normalen Betrieb anschließend den
-jeweiligen Sketch aus den folgenden Befehlen erneut flashen.
+`pio run -c diagnostics.ini -e diagnostics -t upload --upload-port PORT` flashes
+the dedicated test firmware onto one board. It starts with the CAN controller
+disabled and holds CTX at the recessive level. The test firmware temporarily
+replaces the sender or receiver; for normal operation, flash the relevant sketch
+again using the commands below.
 
-Serielle Befehle bei 115200 Baud, jeweils mit Zeilenumbruch: `quiet` deaktiviert
-TWAI, `self500` und `self125` prüfen fünfmal den lokalen Selbstempfang mit
-500 bzw. 125 kbit/s ohne ACK-Anforderung. Die Gegenstelle muss dabei `quiet`
-sein. Solange CANH/CANL verbunden bleiben, kann ein Fehler am gemeinsamen Bus
-auch diese lokalen Tests beeinflussen; ein Fehlschlag beweist keinen Chipdefekt.
-`normal500`/`normal125` aktivieren normalen Empfang mit gleicher Bitrate auf
-beiden Boards, `send` sendet einen einzelnen Testframe ohne Wiederholung,
-`status` zeigt Fehlerzähler. Nur ein RX-Frame auf der Gegenstelle bestätigt
-Netzwerkempfang; Selbstempfang wird ausdrücklich als `PROBE SELF` ausgegeben.
+Serial commands at 115200 baud, each followed by a newline: `quiet` disables
+TWAI; `self500` and `self125` each check local self-reception five times at
+500 or 125 kbit/s without requiring an ACK. The other end must be `quiet`.
+While CANH/CANL remain connected, a shared bus fault may also affect these local
+tests; failure does not prove a defective chip.
+`normal500`/`normal125` enable normal reception at the same bitrate on both boards;
+`send` transmits a single test frame without retrying; `status` shows error
+counters. Only an RX frame at the other end confirms network reception;
+self-reception is explicitly logged as `PROBE SELF`.
 
-`internal` führt bei 500 kbit/s fünf Kontrollversuche mit Rückführung des
-TX-Pads über die GPIO-Matrix aus. Damit werden Transceiver und GPIO4 umgangen;
-Erfolg beweist keine Funktion des äußeren Signalwegs. `levels` schaltet GPIO5
-bei gestopptem TWAI fünfmal kurz auf HIGH/LOW und liest GPIO4 mit Pull-up.
-Der Test ist für den isolierten Breadboard-Aufbau mit getrennten CANH/CANL-
-Verbindungen gedacht, nicht für einen angeschlossenen produktiven CAN-Bus.
-Die Firmware kehrt nach diesen Tests in den stillen Zustand zurück.
+`internal` runs five control attempts at 500 kbit/s, looping the TX pad back
+through the GPIO matrix. This bypasses the transceiver and GPIO4; success does
+not prove the external signal path works. With TWAI stopped, `levels` briefly
+toggles GPIO5 HIGH/LOW five times and reads GPIO4 with a pull-up. This test is
+intended for the isolated breadboard setup with CANH/CANL connections disconnected,
+not for a connected production CAN bus. The firmware returns to the quiet state
+after these tests.
 
 ```sh
 # Sender
@@ -289,23 +319,24 @@ pio run -e sender -t upload
 pio run -c receiver.ini -e receiver -t upload
 ```
 
-## Nutzung (Arduino IDE)
+## Usage (Arduino IDE)
 
 1. Board: *ESP32C3 Dev Module*, **USB CDC On Boot: Enabled**.
-2. `sender/sender.ino` auf Board #1, `receiver/receiver.ino` auf Board #2 flashen.
-3. Serial Monitor (115200 Baud) oeffnen.
+2. Flash `sender/sender.ino` onto board #1 and `receiver/receiver.ino` onto board #2.
+3. Open Serial Monitor (115200 baud).
 
 ## Troubleshooting
 
-- Die Diagnose-Firmware gibt `DIAG`-Zeilen mit Treiberzustand (`0` gestoppt,
-  `1` aktiv, `2` Bus-Off, `3` Recovery), Fehlerzählern und dem abgetasteten
-  RX-Pegel aus. Der Momentanpegel ist keine Spannungsmessung und beweist keine
-  durchgehend ruhige Leitung. `TX_ACK=1` zeigt einen TX_SUCCESS-Alert des
-  Controllers an; den Empfang in der Empfängeranwendung bestätigt erst deren RX-Log.
-- Nach Bus-Off startet der Sender die Recovery und anschließend den Treiber neu.
-- Unter Spannung direkt an jedem CAN-Modul zwischen `3V3` und `GND` ungefähr
-  3,3 V prüfen, wenn der Sender Bus-Off meldet und der Receiver keine Frames sieht.
-- Stromlos zwischen CANH und CANL messen: ca. **60 Ohm** (zwei Terminierungen parallel).
-- `TX FEHLER`: keine Gegenstelle, CANH/CANL vertauscht oder Bitrate unterschiedlich.
-- Bitrate steht in beiden Sketches auf 500 kbit/s.
-- GPIO 2, 8, 9 sind Strapping-Pins, nicht fuer CAN nutzen.
+- The diagnostic firmware outputs `DIAG` lines with the driver state (`0` stopped,
+  `1` active, `2` Bus-Off, `3` Recovery), error counters and sampled RX level.
+  This instantaneous level is not a voltage measurement and does not prove the
+  line is continuously quiet. `TX_ACK=1` indicates a TX_SUCCESS alert from the
+  controller; only the receiver application's RX log confirms reception there.
+- After Bus-Off, the sender starts recovery and then restarts the driver.
+- If the sender reports Bus-Off and the receiver sees no frames, check for about
+  3.3 V directly between `3V3` and `GND` on each powered CAN module.
+- With power disconnected, measure between CANH and CANL: about **60 ohms**
+  (two terminations in parallel).
+- `TX … ERROR (peer/wiring?)`: no other node, CANH/CANL swapped or mismatched bitrate.
+- Both sketches use a bitrate of 500 kbit/s.
+- GPIO 2, 8 and 9 are strapping pins; do not use them for CAN.

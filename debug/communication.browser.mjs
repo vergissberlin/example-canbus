@@ -2,7 +2,7 @@
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(check) {
   for (let i = 0; i < 100; i++) { if (check()) return; await wait(25); }
-  throw new Error('Browser-Timeout');
+  throw new Error('Browser timeout');
 }
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -42,7 +42,7 @@ function bootstrap(options) {
 async function fixture(options = {}) {
   const html = await (await fetch('./index.html?v=timeline1', {cache:'no-store'})).text();
   const iframe = document.createElement('iframe');
-  iframe.title = 'Simulierte CAN/LAB-Konsole'; iframe.style.width = '1160px';
+  iframe.title = 'Simulated CAN/LAB console'; iframe.style.width = '1160px';
   const base = new URL('./', location.href).href;
   iframe.srcdoc = html.replace('<head>', `<head><base href="${base}"><script>(${bootstrap.toString()})(${JSON.stringify(options)})</script>`);
   document.querySelector('#fixtures').replaceChildren(iframe);
@@ -65,67 +65,67 @@ async function run() {
     document.querySelector('#results').append(item);
   }
   const f = await fixture();
-  const rx = n => `RX ID 0x123 DLC 4 Daten: ${n.toString(16).padStart(2, '0')} 00 00 00  (Zaehler=${n})\n`;
-  await check('SVG geladen; WebSerial für beide Boards verfügbar', async () => {
-    assert(f.doc.querySelector('#communication-diagram svg'), 'SVG fehlt');
+  const rx = n => `RX ID 0x123 DLC 4 Data: ${n.toString(16).padStart(2, '0')} 00 00 00  (Counter=${n})\n`;
+  await check('SVG loaded; WebSerial available for both boards', async () => {
+    assert(f.doc.querySelector('#communication-diagram svg'), 'SVG missing');
     f.click('[data-device="sender"] .connect'); f.click('[data-device="receiver"] .connect');
     await until(() => f.doc.querySelectorAll('.device.connected').length === 2);
   });
-  await check('TX pulsiert CTX und USB, aber nicht den CAN-Bus', async () => {
+  await check('TX pulses CTX and USB, but not the CAN bus', async () => {
     f.ports[0].send('TX #1 -> ok\n');
     await until(() => f.active('sender-tx'));
-    assert(f.active('sender-usb'), 'USB bleibt inaktiv');
-    assert(!f.active('canh') && !f.active('receiver-rx'), 'TX wurde als RX dargestellt');
-    await wait(450); assert(!f.active('sender-tx'), 'Blitz endet nicht');
+    assert(f.active('sender-usb'), 'USB remains inactive');
+    assert(!f.active('canh') && !f.active('receiver-rx'), 'TX was rendered as RX');
+    await wait(450); assert(!f.active('sender-tx'), 'Flash does not end');
   });
-  await check('RX bestätigt Bus und CRX; ID und Zähler erscheinen', async () => {
+  await check('RX confirms bus and CRX; ID and counter appear', async () => {
     f.ports[1].send(rx(1)); await until(() => f.active('receiver-rx'));
-    assert(f.active('canh') && f.active('canl'), 'CAN-Leitung fehlt');
-    assert(f.doc.querySelector('[data-last-frame]').textContent === 'RX 0x123 · #1', 'Falsche RX-Beschriftung');
+    assert(f.active('canh') && f.active('canl'), 'CAN wire missing');
+    assert(f.doc.querySelector('[data-last-frame]').textContent === 'RX 0x123 · #1', 'Incorrect RX label');
     const glow = f.doc.querySelector('[data-wire="receiver-rx"] .wire-glow');
     const style = f.iframe.contentWindow.getComputedStyle(glow);
-    assert(style.animationName === 'comm-flash' || style.opacity === '0.6', 'SVG-Aktivitätsstil fehlt');
+    assert(style.animationName === 'comm-flash' || style.opacity === '0.6', 'SVG activity style missing');
     await wait(450);
   });
-  await check('Pausierte und gefilterte Konsole stoppt die Signalansicht nicht', async () => {
+  await check('Pausing and filtering the console does not stop the signal view', async () => {
     f.click('#pause');
-    const search = f.doc.querySelector('#search'); search.value = 'keine-treffer'; search.dispatchEvent(new Event('input', { bubbles: true }));
+    const search = f.doc.querySelector('#search'); search.value = 'no-matches'; search.dispatchEvent(new Event('input', { bubbles: true }));
     f.ports[1].send(rx(2)); await until(() => f.active('receiver-rx'));
-    assert(f.doc.querySelector('#pause').getAttribute('aria-pressed') === 'true', 'Pause fehlt');
-    assert(f.doc.querySelector('[data-last-frame]').textContent.endsWith('#2'), 'Signalansicht pausiert mit');
+    assert(f.doc.querySelector('#pause').getAttribute('aria-pressed') === 'true', 'Pause missing');
+    assert(f.doc.querySelector('[data-last-frame]').textContent.endsWith('#2'), 'Signal view paused too');
     await wait(450);
-    f.click('#pause'); await until(() => f.doc.querySelector('#console').textContent.includes('Keine Zeilen'));
+    f.click('#pause'); await until(() => f.doc.querySelector('#console').textContent.includes('No lines'));
     search.value = ''; search.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  await check('Schnelle Ereignisfolgen bleiben begrenzt und kommen zur Ruhe', async () => {
+  await check('Rapid event sequences stay bounded and settle', async () => {
     f.ports[1].send(Array.from({ length: 100 }, () => rx(3)).join(''));
     await until(() => f.active('canh'));
-    assert(f.doc.querySelectorAll('.pulse-active').length === 4, 'Unerwartete Leitungen aktiv');
-    await wait(500); assert(f.doc.querySelectorAll('.pulse-active').length === 0, 'Animationen stauen sich');
+    assert(f.doc.querySelectorAll('.pulse-active').length === 4, 'Unexpected wires active');
+    await wait(500); assert(f.doc.querySelectorAll('.pulse-active').length === 0, 'Animations are queueing up');
   });
-  await check('Bus-Off zeigt Fehler, aber keinen Empfang', async () => {
+  await check('Bus-Off shows an error, but no reception', async () => {
     f.ports[0].send('Bus-Off -> Recovery\n');
     await until(() => f.doc.querySelector('[data-node="sender"]').classList.contains('has-error'));
-    assert(!f.active('canh') && !f.active('sender-tx'), 'Fehler aktiviert Erfolgspfad');
+    assert(!f.active('canh') && !f.active('sender-tx'), 'Error activates success path');
     await wait(450);
   });
-  await check('Trennen entfernt aktive Markierungen des Boards', async () => {
+  await check('Disconnecting clears active board highlights', async () => {
     f.ports[1].send(rx(4)); await until(() => f.active('receiver-rx'));
     f.click('[data-device="receiver"] .disconnect');
     await until(() => !f.doc.querySelector('[data-device="receiver"]').classList.contains('connected'));
-    assert(!f.active('receiver-rx') && !f.active('canh'), 'Markierung bleibt nach Trennen');
+    assert(!f.active('receiver-rx') && !f.active('canh'), 'Highlight remains after disconnecting');
   });
-  await check('390px: SVG scrollt im Container, Seite läuft nicht über', async () => {
+  await check('390px: SVG scrolls within its container without page overflow', async () => {
     f.iframe.style.width = '390px'; await wait(50);
     const host = f.doc.querySelector('#communication-diagram');
-    assert(host.scrollWidth > host.clientWidth, 'Grafik nicht scrollbar');
-    assert(f.doc.documentElement.scrollWidth <= f.doc.documentElement.clientWidth + 1, 'Seite läuft horizontal über');
+    assert(host.scrollWidth > host.clientWidth, 'Diagram is not scrollable');
+    assert(f.doc.documentElement.scrollWidth <= f.doc.documentElement.clientWidth + 1, 'Page overflows horizontally');
     f.iframe.style.width = '1160px';
   });
-  await check('Reduced Motion: feste Farbmarkierung ohne Animation (Test-Override)', async () => {
+  await check('Reduced motion: fixed color highlight without animation (test override)', async () => {
     const rules = Array.from(f.doc.querySelector('#communication-diagram style').sheet.cssRules);
     const reduced = rules.find(rule => rule.conditionText?.replace(/\s/g, '').includes('prefers-reduced-motion:reduce'));
-    assert(reduced && reduced.cssRules[0].style.animationName === 'none', 'Reduced-Motion-Regel fehlt');
+    assert(reduced && reduced.cssRules[0].style.animationName === 'none', 'Reduced-motion rule missing');
     // Apply the exact bundled media-rule body in this isolated test iframe,
     // independent of the user's OS preference; no system settings are changed.
     const override = f.doc.createElementNS('http://www.w3.org/2000/svg', 'style');
@@ -134,13 +134,13 @@ async function run() {
     f.ports[0].send('TX #5 -> ok\n'); await until(() => f.active('sender-tx'));
     const glow = f.doc.querySelector('[data-wire="sender-tx"] .wire-glow');
     const computed = f.iframe.contentWindow.getComputedStyle(glow);
-    assert(computed.animationName === 'none' && computed.opacity === '0.6', 'Statische Markierung fehlt');
-    await wait(450); assert(!f.active('sender-tx'), 'Reduced-Motion-Markierung bleibt hängen');
+    assert(computed.animationName === 'none' && computed.opacity === '0.6', 'Static highlight missing');
+    await wait(450); assert(!f.active('sender-tx'), 'Reduced-motion highlight remains stuck');
     override.remove();
   });
-  await check('404 für SVG: USB und Empfang funktionieren trotzdem', async () => {
+  await check('SVG 404: USB and reception still work', async () => {
     const missing = await fixture({ missingSvg: true });
-    assert(missing.doc.querySelector('.diagram-unavailable'), 'Fallback fehlt');
+    assert(missing.doc.querySelector('.diagram-unavailable'), 'Fallback missing');
     missing.click('[data-device="receiver"] .connect');
     await until(() => missing.doc.querySelector('.device.connected'));
     missing.ports[0].send(rx(9));
@@ -150,71 +150,71 @@ async function run() {
   const load = await fixture({ loadTest: true });
   const senderStats = id => `LAB STATS role=sender test=${id} running=1 target=1000 queued=100 queued_fps=100 rejected=10 skipped=0 cancelled=0 pending=10 failed=0 errors=0 tec=0 rec=0 state=1 elapsed_ms=1000\n`;
   const receiverStats = (id, count) => `LAB STATS role=receiver test=${id} rx=${count} rx_fps=${count} counter=${count - 1} gaps=0 duplicates=0 missed=0 overrun=0 errors=0 tec=0 rec=0 state=1 elapsed_ms=1000\n`;
-  await check('Lasttest startet erst nach Firmware-Handshake und ARM-Bestätigung', async () => {
-    assert(load.doc.querySelector('#load-start').disabled, 'Start ohne USB möglich');
+  await check('Load test starts only after firmware handshake and ARM acknowledgement', async () => {
+    assert(load.doc.querySelector('#load-start').disabled, 'Start possible without USB');
     load.click('[data-device="sender"] .connect'); load.click('[data-device="receiver"] .connect');
     await until(() => !load.doc.querySelector('#load-start').disabled);
     load.click('[data-load-rate="1000"]'); load.click('#load-start');
     await until(() => load.doc.querySelector('#load-test').classList.contains('is-running'));
     const commands = load.iframe.contentWindow.testCommands.map(x => x.command);
-    assert(commands.findIndex(c => c.startsWith('LAB ARM')) < commands.findIndex(c => c.startsWith('LAB START')), 'Sender vor Receiver gestartet');
+    assert(commands.findIndex(c => c.startsWith('LAB ARM')) < commands.findIndex(c => c.startsWith('LAB START')), 'Sender started before receiver');
   });
-  await check('Lasttest: TX-Statistik erzeugt keinen erfundenen Empfang', async () => {
+  await check('Load test: TX statistics do not invent reception', async () => {
     load.ports[0].send(senderStats(load.ports[0].test));
     await until(() => load.doc.querySelector('#load-queued').textContent === '100');
-    assert(load.doc.querySelector('#load-actual').textContent === '—', 'Empfang aus TX abgeleitet');
-    assert(!load.active('canh'), 'TX aktiviert CAN-Empfang');
+    assert(load.doc.querySelector('#load-actual').textContent === '—', 'Reception inferred from TX');
+    assert(!load.active('canh'), 'TX activates CAN reception');
   });
-  await check('Lasttest: RX-Summen aktualisieren Metriken auch bei Pause und Filter genau einmal', async () => {
+  await check('Load test: RX totals update metrics exactly once even with pause and filtering', async () => {
     load.click('#pause');
-    const search = load.doc.querySelector('#search'); search.value = 'keine-treffer'; search.dispatchEvent(new Event('input', { bubbles: true }));
+    const search = load.doc.querySelector('#search'); search.value = 'no-matches'; search.dispatchEvent(new Event('input', { bubbles: true }));
     const line = receiverStats(load.ports[0].test, 90);
     load.ports[1].send(line); load.ports[1].send(line);
     await until(() => load.doc.querySelector('#load-actual').textContent === '90');
     await until(() => load.doc.querySelector('#rx-count').textContent === '90');
-    assert(load.doc.querySelector('#rx-count').textContent === '90', `Doppelte Summierung: ${load.doc.querySelector('#rx-count').textContent}`);
-    assert(load.doc.querySelector('#load-rejected').textContent === '10', 'Queue-Rückweisungen fehlen');
-    assert(load.doc.querySelector('#load-gaps').textContent === '0', 'Queue-Rückweisungen als RX-Verlust gezählt');
+    assert(load.doc.querySelector('#rx-count').textContent === '90', `Duplicate summation: ${load.doc.querySelector('#rx-count').textContent}`);
+    assert(load.doc.querySelector('#load-rejected').textContent === '10', 'Queue rejections missing');
+    assert(load.doc.querySelector('#load-gaps').textContent === '0', 'Queue rejections counted as RX loss');
   });
-  await check('Zeitdiagramm zeigt getrennte TX/RX-Punkte trotz pausierter Konsole', async () => {
-    assert(load.doc.querySelector('#load-tx-line').getAttribute('d').startsWith('M'), 'TX-Kurve fehlt');
-    assert(load.doc.querySelector('#load-rx-line').getAttribute('d').startsWith('M'), 'RX-Kurve fehlt');
-    assert(load.doc.querySelectorAll('#load-chart-points circle').length === 2, 'Doppelte oder fehlende Punkte');
-    assert(load.doc.querySelector('[data-chart-second="60"]').textContent === '60 s', 'Sekundenachse fehlt');
+  await check('Time chart shows separate TX/RX points even with a paused console', async () => {
+    assert(load.doc.querySelector('#load-tx-line').getAttribute('d').startsWith('M'), 'TX curve missing');
+    assert(load.doc.querySelector('#load-rx-line').getAttribute('d').startsWith('M'), 'RX curve missing');
+    assert(load.doc.querySelectorAll('#load-chart-points circle').length === 2, 'Duplicate or missing points');
+    assert(load.doc.querySelector('[data-chart-second="60"]').textContent === '60 s', 'Seconds axis missing');
   });
-  await check('Regler bewegt sich in Fünferschritten, Vorgabe 1 bleibt verfügbar', async () => {
+  await check('Slider moves in steps of five; preset 1 remains available', async () => {
     const slider=load.doc.querySelector('#load-slider');
-    assert(slider.min === '5' && slider.step === '5', 'Regler nicht auf Vielfache von fünf gesetzt');
+    assert(slider.min === '5' && slider.step === '5', 'Slider not set to multiples of five');
     slider.value='105'; slider.dispatchEvent(new Event('input', {bubbles:true}));
-    assert(load.doc.querySelector('#load-rate').value === '105', 'Regler nicht synchronisiert');
+    assert(load.doc.querySelector('#load-rate').value === '105', 'Slider not synchronized');
     load.click('[data-load-rate="1"]');
-    assert(load.doc.querySelector('#load-rate').value === '1', 'Ein Frame/s nicht mehr möglich');
+    assert(load.doc.querySelector('#load-rate').value === '1', 'One frame/s is no longer possible');
   });
-  await check('Lasttest: neue Rate wird bestätigt, Stopp bleibt bedienbar', async () => {
+  await check('Load test: new rate is acknowledged and stop remains available', async () => {
     load.click('[data-load-rate="5000"]'); load.click('#load-rate-apply');
-    await until(() => load.doc.querySelector('#load-target').textContent === '5.000');
+    await until(() => load.doc.querySelector('#load-target').textContent === '5,000');
     load.click('#load-stop');
     await until(() => !load.doc.querySelector('#load-test').classList.contains('is-running'));
-    assert(load.doc.querySelector('#load-rate-apply').disabled, 'Ratenänderung nach Stopp möglich');
-    assert(load.doc.querySelector('#load-actual').textContent === '90', 'Endwerte verschwunden');
+    assert(load.doc.querySelector('#load-rate-apply').disabled, 'Rate change possible after stop');
+    assert(load.doc.querySelector('#load-actual').textContent === '90', 'Final values disappeared');
   });
-  await check('Lasttest: 390px bleibt ohne horizontales Seiten-Overflow', async () => {
+  await check('Load test: no horizontal page overflow at 390px', async () => {
     load.iframe.style.width = '390px'; await wait(50);
-    assert(load.doc.documentElement.scrollWidth <= load.doc.documentElement.clientWidth + 1, 'Lasttest läuft über');
+    assert(load.doc.documentElement.scrollWidth <= load.doc.documentElement.clientWidth + 1, 'Load test overflows');
     load.iframe.style.width = '1160px';
   });
-  await check('Lasttest: Receiver-Trennen fordert Sender-Stopp an', async () => {
+  await check('Load test: disconnecting receiver requests sender stop', async () => {
     load.click('#load-start'); await until(() => load.doc.querySelector('#load-test').classList.contains('is-running'));
     load.click('[data-device="receiver"] .disconnect');
     await until(() => !load.doc.querySelector('[data-device="receiver"]').classList.contains('connected'));
-    assert(load.doc.querySelector('#load-start').disabled, 'Start nach Trennen möglich');
-    assert(load.iframe.contentWindow.testCommands.at(-1).command === 'LAB STOP', 'Kein Stopp beim Trennen');
+    assert(load.doc.querySelector('#load-start').disabled, 'Start possible after disconnecting');
+    assert(load.iframe.contentWindow.testCommands.at(-1).command === 'LAB STOP', 'No stop on disconnect');
   });
   // Leave a clean simulated view for visual inspection, never the real USB page.
   await fixture();
-  document.querySelector('#result').textContent = `${passed} bestanden · ${failed} fehlgeschlagen · Simulation, kein Hardwaretest`;
+  document.querySelector('#result').textContent = `${passed} passed · ${failed} failed · Simulation, not a hardware test`;
   runButton.disabled = false;
 }
 document.querySelector('#run').addEventListener('click', () => {
-  run().catch(error => { document.querySelector('#result').textContent = `Testabbruch: ${error.message}`; document.querySelector('#run').disabled = false; });
+  run().catch(error => { document.querySelector('#result').textContent = `Test aborted: ${error.message}`; document.querySelector('#run').disabled = false; });
 });
