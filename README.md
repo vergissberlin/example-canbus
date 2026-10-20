@@ -90,7 +90,8 @@ die Ursache dieses Verhaltens wurde nicht abschließend bestimmt.
 Die lokale [CAN/LAB-Konsole](debug/index.html) liest die USB-Ausgabe der bereits
 geflashten Sketches. Sie kann beide Boards gleichzeitig öffnen, RX-Zähler und
 Zählersprünge anzeigen sowie Logs filtern, pausieren und als Text exportieren.
-Die Firmware muss dafür nicht geändert werden.
+Für das reine Lesen bestehender Logs ist keine Firmware-Änderung nötig;
+der einstellbare Lasttest benötigt beide aktuellen Sketches.
 
 1. Im Repository `./debug/serve.command` starten (auf macOS auch per Doppelklick).
 2. In **Microsoft Edge oder Google Chrome** auf dem Mac
@@ -110,6 +111,86 @@ weiter. „Leeren“ entfernt die Logzeilen, die Messwerte bleiben erhalten. Ein
 Seiten-Reload schließt die Verbindungen und setzt Logs und Messwerte zurück.
 Zählersprünge können auch durch fehlende USB-Logzeilen entstehen und beweisen
 keinen CAN-Paketverlust. Server mit `Ctrl+C` beenden.
+
+### Einstellbarer CAN-Lasttest
+
+Das Feld **„Wie viel geht durch?“** steuert den Sender über Web Serial:
+
+1. Beide aktuellen Sketches neu flashen (Befehle unter „Flashen mit PlatformIO“).
+   Ältere Demo- oder spezielle Selbsttest-Firmware unterstützt die Steuerbefehle nicht.
+2. Beide Boards in den richtigen USB-Karten verbinden. Der Firmware-Handshake
+   prüft Rolle, Protokollversion und die gemeinsame Bitrate von **500 kbit/s**.
+3. Zielrate zwischen **1 und 20.000 Frames/s** und Testdauer zwischen **1 und
+   60 Sekunden** wählen. Zunächst beispielsweise 100 Frames/s für zehn Sekunden.
+4. **Test starten** stoppt die normale Ein-Frame-pro-Sekunde-Demo, bereitet den
+   Receiver vor und startet erst nach dessen Bestätigung den Sender.
+5. Während des Tests lässt sich mit **Rate übernehmen** die Zielrate ändern;
+   die ursprüngliche Ablaufzeit bleibt erhalten. **Stopp** beendet das Einreihen.
+   Nach Ablauf stoppt die Firmware auch ohne geöffneten Browser automatisch.
+   Ein in Übertragung befindliches Frame kann noch abschließen.
+6. Nach dem Test bleibt der Sender gestoppt. RESET am Sender startet wieder
+   die normale Demo mit einem Frame pro Sekunde.
+
+Lastframes verwenden die Standard-ID `0x123` und **acht Datenbytes**: vier Byte
+Zähler und vier Byte Testkennung, jeweils Little Endian. Die normale Demo
+verwendet weiterhin vier Datenbytes. Die Bitrate selbst wird hier nicht
+umgestellt. Die Zielrate ist angebotene Last und kann die Buskapazität übersteigen.
+
+**Was die Anzeigen bedeuten:**
+
+- **Empfangen/FPS:** Vom Receiver innerhalb seines Firmware-Messfensters
+  gezählte Frames dieses Tests; keine Schätzung aus USB-Ankunftszeiten.
+- **Eingereiht/FPS:** Vom Sender erfolgreich in die TWAI-Sendewarteschlange
+  übergebene Frames. Das beweist keinen Empfang auf der Gegenstelle.
+- **TX-Queue voll / abgelehnt:** Nicht angenommene Sendeversuche. Der Zähler
+  im Payload wird dabei nicht erhöht, damit diese Versuche keine künstlichen
+  Empfangslücken erzeugen.
+- **Scheduler ausgelassen:** Nach einer Programmunterbrechung nicht nachgeholte
+  Sendegelegenheiten. Die Firmware begrenzt Nachholbursts auf 32 Frames.
+- **Zählerlücken:** Im passenden Test-Payload erkannte fehlende Sequenzwerte.
+  Nicht empfangene letzte Frames können dadurch allein nicht erkannt werden.
+- **RX-Queue voll / HW-Overrun** und **Busfehler Sender / Receiver:** Separate
+  TWAI-Fehlerzähler relativ zum Beginn dieses Tests. Sie sind keine Messung
+  der elektrischen Busauslastung und keine automatische Verlustquote.
+
+Die Kurve zeigt die letzten dreißig Receiver-Statusberichte; die gestrichelte
+Linie zeigt die aktuelle Zielrate. Alte Messwerte bleiben nach Testende sichtbar.
+Bei einem neuen Test werden sie zurückgesetzt. Bei mehr als drei Sekunden ohne
+neuen Bericht wird die Anzeige als veraltet gekennzeichnet. Konsole pausieren
+oder filtern beeinflusst weder Messwerte noch Steuerbefehle.
+
+Der Receiver arbeitet ohne die frühere 50-ms-Pause pro Frame. Lastframes werden
+nicht einzeln seriell ausgegeben; beide Boards melden etwa einmal pro Sekunde
+Summen. Dadurch soll die USB-Konsole nicht selbst den Test begrenzen. Die
+Signalweg-Grafik pulsiert beim Eingang dieser Sammelberichte; sie zeigt keine
+zeitgenauen Einzelimpulse auf dem CAN-Bus.
+
+Die Befehle werden mit Zeilenumbruch bei 115200 Baud übertragen:
+
+```text
+LAB HELLO
+LAB STOP
+LAB ARM 123
+LAB START 123 1000 10
+LAB RATE 123 5000
+LAB STATUS
+LAB STOP
+```
+
+`ARM` ist für den Receiver, `START` und `RATE` für den Sender. Die Testkennung
+muss auf beiden Seiten gleich und ungleich null sein. `START` enthält Kennung,
+Zielrate und Dauer in Sekunden. Ungültige Werte werden abgelehnt. Die
+Browserseite verwendet für jeden Start eine neue Kennung und wartet auf ACKs.
+Nur in diesem getrennten Breadboard-Versuchsaufbau verwenden.
+
+**Prüfstand:** JavaScript-Protokoll- und Zustandstests, native C++-Tests des
+Befehlsparsers und der Taktung sowie beide PlatformIO-Builds sind lokal geprüft.
+Alle 27 JavaScript-Tests und 16 Browser-Integrationstests bestehen; auch der
+native C++-Test und beide PlatformIO-Builds sind erfolgreich. Die Browser-
+Prüfseite verwendet ausdrücklich simulierte USB-Ports. Für diese
+neue Lasttest-Firmware steht die Hardware-Abnahme mit einstellbarer Rate noch
+aus, da beim Abschluss keine ESPs per USB angeschlossen waren. Die oben
+beschriebenen erfolgreichen Hardware-Tests betreffen den vorherigen Demo-Stand.
 
 ### Live-Signalweg
 
@@ -138,7 +219,14 @@ Kann die SVG nicht geladen werden, funktioniert WebSerial weiterhin.
 
 ### Tests
 
-Parser- und Signaltests: `node --test debug/*.test.mjs`.
+Parser-, Signal- und Laststeuerungstests: `node --test debug/*.test.mjs`.
+
+Native Firmware-Steuerungstests:
+
+```sh
+c++ -std=c++11 -Wall -Wextra -Werror tests/load_control_test.cpp -o /tmp/canlab-control-test
+/tmp/canlab-control-test
+```
 
 Für Browser-Integrationstests bei laufendem lokalen Server
 http://localhost:8765/debug/communication.browser.test.html öffnen und

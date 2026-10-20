@@ -171,7 +171,8 @@ async function run() {
     const line = receiverStats(load.ports[0].test, 90);
     load.ports[1].send(line); load.ports[1].send(line);
     await until(() => load.doc.querySelector('#load-actual').textContent === '90');
-    assert(load.doc.querySelector('#rx-count').textContent === '90', 'Doppelte Summierung');
+    await until(() => load.doc.querySelector('#rx-count').textContent === '90');
+    assert(load.doc.querySelector('#rx-count').textContent === '90', `Doppelte Summierung: ${load.doc.querySelector('#rx-count').textContent}`);
     assert(load.doc.querySelector('#load-rejected').textContent === '10', 'Queue-Rückweisungen fehlen');
     assert(load.doc.querySelector('#load-gaps').textContent === '0', 'Queue-Rückweisungen als RX-Verlust gezählt');
   });
